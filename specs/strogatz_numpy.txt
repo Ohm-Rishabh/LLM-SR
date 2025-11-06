@@ -1,0 +1,54 @@
+"""
+Find a mathematical function that models an output variable given two input variables.
+"""
+
+
+import numpy as np
+
+#Initialize parameters
+MAX_NPARAMS = 10
+PRAMS_INIT = [1.0]*MAX_NPARAMS
+
+
+@evaluate.run
+def evaluate(data: dict) -> float:
+    """ Evaluate the equation on data observations."""
+    
+    # Load data observations
+    inputs, outputs = data['inputs'], data['outputs']
+    x1, x2 = inputs[:,0], inputs[:,1]
+    
+    # Optimize parameters based on data
+    from scipy.optimize import minimize
+    def loss(params):
+        y_pred = equation(x1, x2, params)
+        return np.mean((y_pred - outputs) ** 2)
+
+    loss_partial = lambda params: loss(params)
+    result = minimize(loss_partial, [1.0]*MAX_NPARAMS, method='BFGS')
+    
+    # Return evaluation score
+    optimized_params = result.x
+    loss = result.fun
+
+    if np.isnan(loss) or np.isinf(loss):
+        return None
+    else:
+        return -loss
+
+
+
+@equation.evolve
+def equation(x1: np.ndarray, x2: np.ndarray, params: np.ndarray) -> np.ndarray:
+    """ Mathematical function for a system with two inputs.
+
+    Args:
+        x1: A numpy array representing the first input variable.
+        x2: A numpy array representing the second input variable.
+        params: Array of numeric constants or parameters to be optimized
+
+    Return:
+        A numpy array representing the predicted output variable.
+    """
+    output = params[0] * x1 + params[1] * x2
+    return output
