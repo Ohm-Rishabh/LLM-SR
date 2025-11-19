@@ -8,20 +8,38 @@
 Once the folder and spec exist, you can run the benchmark with either a local LLM or an API-backed one. Replace the placeholder names below with your own paths:
 
 ```
-# Local / self-hosted LLM
-python main.py \
-    --problem_name data/my_benchmark \
-    --spec_path ./specs/specification_my_benchmark_numpy.txt \
-    --log_path ./logs/my_benchmark_local
+Local Runs (Open-Source LLMs)
+Start the local LLM Server
+First, start the local LLM engine from huggingface models by using the bash run_server.sh script or running the following command:
 
-# API-backed run (e.g., OpenAI)
-export API_KEY=sk-...
-python main.py \
-    --use_api True \
-    --api_model "gpt-4.1-mini" \
-    --problem_name data/my_benchmark \
-    --spec_path ./specs/specification_my_benchmark_numpy.txt \
-    --log_path ./logs/my_benchmark_api
+cd llm_engine
+
+python engine.py --model_path mistralai/Mixtral-8x7B-Instruct-v0.1 \
+                    --gpu_ids [GPU_ID]  \
+                    --port [PORT_ID] --quantization
+Set gpu_ids and port parameters based on your server availability
+
+Change model_path to use a different open-source model from Hugging Face
+
+quantization activates efficient inference of LLM with quantization on GPUs
+
+Control quantization level with load_in_4bit and load_in_8bit parameters in engine.py
+
+Run LLM-SR on Local Server
+After activating the local LLM server, run the LLM-SR framework on your dataset with the run_llmsr.sh script or running the following command:
+
+python main.py --problem_name [PROBLEM_NAME] \
+                   --spec_path [SPEC_PATH] \
+                   --log_path [LOG_PATH]
+Update the port id in the url in sampler.py to match the LLM server port
+
+problem_name refers to the target problem and dataset in data/
+
+spec_path refers to the initial prompt specification file path in spec/
+
+Available problem names for datasets: oscillator1, oscillator2, bactgrow, stressstrain
+
+For more example scripts, check run_llmsr.sh.
 ```
 
 Tips:
