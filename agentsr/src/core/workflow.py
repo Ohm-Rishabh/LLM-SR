@@ -70,11 +70,15 @@ class Workflow:
         else:
             logger.info(f"Added node '{node.name}' to workflow")
 
-    def add_edge(self, src: str, dst: str) -> None:
+    def add_edge(self, src: str | Node, dst: str | Node) -> None:
         """
         Add a directed edge from node `src` to node `dst`.
         Both nodes must already be in the workflow.
         """
+        if isinstance(src, Node):
+            src = src.name
+        if isinstance(dst, Node):
+            dst = dst.name
         if src not in self._nodes:
             logger.error(f"Source node '{src}' not found in workflow")
             raise KeyError(f"Source node {src!r} not found in workflow.")

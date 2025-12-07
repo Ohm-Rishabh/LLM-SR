@@ -1,10 +1,6 @@
-### PySR (Python Symbolic Regression)
-
 #### Description
 
-PySR is a high-performance symbolic regression tool that uses evolutionary algorithms to discover mathematical equations that fit your data. It is built on top of SymbolicRegression.jl (Julia) for computational efficiency while providing a Python interface compatible with scikit-learn.
-
-**Main Interface:** `PySRRegressor` (for regression tasks)
+**pysr** is a high-performance symbolic regression tool that uses evolutionary algorithms to discover mathematical equations that fit your data. It is built on top of SymbolicRegression.jl (Julia) for computational efficiency while providing a Python interface compatible with scikit-learn.
 
 **Best For:**
 - Complex non-linear relationships
@@ -116,11 +112,6 @@ PySR is a high-performance symbolic regression tool that uses evolutionary algor
 
 ##### Optimization and Refinement
 
-- **`optimize_hof`** (bool)
-  - Optimize constants in the Hall of Fame (best equations) using gradient descent
-  - Improves equation accuracy through local optimization
-  - **Default:** `True`
-
 - **`warm_start`** (bool)
   - Continue search from previous `.fit()` call
   - Useful for incremental searches or parameter tuning
@@ -164,7 +155,7 @@ PySR is a high-performance symbolic regression tool that uses evolutionary algor
 ##### Simple Linear/Polynomial Search
 ```json
 {
-  "tool_name": "PySR",
+  "tool_name": "pysr",
   "arguments": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": [],
@@ -179,7 +170,7 @@ PySR is a high-performance symbolic regression tool that uses evolutionary algor
 ##### Non-linear with Trigonometric Functions
 ```json
 {
-  "tool_name": "PySR",
+  "tool_name": "pysr",
   "arguments": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": ["sin", "cos", "exp", "log"],
@@ -194,7 +185,7 @@ PySR is a high-performance symbolic regression tool that uses evolutionary algor
 ##### Quick Exploration (Fast)
 ```json
 {
-  "tool_name": "PySR",
+  "tool_name": "pysr",
   "arguments": {
     "binary_operators": ["+", "-", "*"],
     "unary_operators": ["square"],
@@ -210,7 +201,7 @@ PySR is a high-performance symbolic regression tool that uses evolutionary algor
 ##### High-Dimensional with Feature Selection
 ```json
 {
-  "tool_name": "PySR",
+  "tool_name": "pysr",
   "arguments": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": ["exp", "log"],

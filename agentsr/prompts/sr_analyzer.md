@@ -36,7 +36,7 @@ You should analyze the data and provide your reasoning in natural language. Expl
 {
   "tool_call": {
     "tool_name": "name of selected tool",
-    "arguments": {
+    "args": {
       "parameter1": "value1",
       "parameter2": "value2"
     }
@@ -71,7 +71,7 @@ Given the clear periodic patterns, I'm selecting PySR (Python Symbolic Regressio
 {
   "tool_call": {
     "tool_name": "PySR",
-    "arguments": {
+    "args": {
       "niterations": 40,
       "binary_operators": ["+", "-", "*", "/"],
       "unary_operators": ["sin", "cos", "exp", "log"],

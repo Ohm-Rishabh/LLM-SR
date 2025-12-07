@@ -1,77 +1,289 @@
-from core.node import LLMNode
+from core.node import LLMNode, Node
 from core.consts import ROOT_DIR, SRC_DIR
 from typing import Any, Dict, List, Optional
 import os
 import base64
 import logging
+import subprocess
+import json as json_module
+from pathlib import Path
 
 logger = logging.getLogger(__name__)
 
-class ToolSwitchNode(LLMNode):
+class ToolSwitchNode(Node):
     """
-    A specialized LLM node that decides which tool to use for symbolic regression.
+    A node that executes tool calls from the state.
 
-    This node analyzes the data characteristics and task requirements to
-    select the appropriate symbolic regression tool.
+    This node extracts tool call information from the state (provided by SRNode),
+    locates the corresponding bash entry script, substitutes arguments from the
+    tool_call JSON, executes the script, and awaits the results.
+
+    Directory structure expected:
+        tools/
+        ├── pysr/
+        │   └── run.sh
+        ├── gplearn/
+        │   └── run.sh
+        └── ...
+
+    The bash scripts can use placeholders that will be replaced with values
+    from the tool_call arguments.
     """
 
     def __init__(
         self,
         name: str = "tool_switch",
-        system_prompt: str = "tool_selector",
-        available_tools: Optional[List[str]] = None,
-        **kwargs
+        description: str = "Executes tool calls and awaits results",
+        tools_dir: Optional[str] = None,
+        timeout: Optional[int] = None,
     ):
         """
         Initialize the tool switch node.
 
         Args:
             name: Node name.
-            system_prompt: Name of the prompt file (without .md extension).
-            available_tools: List of available tool names.
-            **kwargs: Additional arguments passed to LLMNode.
+            description: Human-readable description of this node's purpose.
+            tools_dir: Directory containing tool subdirectories with run.sh scripts.
+                      Defaults to ROOT_DIR/tools
+            timeout: Maximum execution time in seconds (None for no timeout).
         """
-        super().__init__(
-            name=name,
-            system_prompt=system_prompt,
-            parse_json=True,
-            **kwargs
-        )
-        self.available_tools = available_tools or ["linear_regression"]
+        super().__init__(name=name, description=description)
+        self.tools_dir = tools_dir or os.path.join(ROOT_DIR, "tools")
+        self.timeout = timeout
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Run the tool switch node and determine the next node to execute.
+        Run the tool switch node to execute tool calls.
 
         Args:
-            state: Current workflow state.
+            state: Current workflow state containing "tool_call" field.
 
         Returns:
-            Updated state with tool selection.
+            Updated state with tool execution results.
         """
-        logger.info(f"[{self.name}] Starting tool selection")
+        logger.info(f"[{self.name}] Starting tool execution")
 
-        # Call parent run to get LLM output
-        state = super().run(state)
+        # Extract tool call from state
+        tool_call = state.get("tool_call")
+        if not tool_call:
+            logger.warning(f"[{self.name}] No tool_call found in state")
+            state["tool_result"] = {"error": "No tool call found in state"}
+            return state
 
-        # Extract tool selection from parsed JSON
-        if "parsed_json" in state and "tool" in state["parsed_json"]:
-            selected_tool = state["parsed_json"]["tool"]
-            logger.info(f"[{self.name}] Selected tool from JSON: {selected_tool}")
-        else:
-            # Default to linear regression if no tool specified
-            selected_tool = "linear_regression"
-            logger.warning(f"[{self.name}] No tool found in JSON, defaulting to: {selected_tool}")
+        logger.info(f"[{self.name}] Received tool call: {tool_call}")
 
-        # Store the selected tool
-        state["selected_tool"] = selected_tool
+        # Execute the tool and await results
+        tool_result = self._execute_tool(tool_call, state)
 
-        # Set the next node based on the selected tool
-        next_node = f"tool_{selected_tool}"
-        state["_next_node"] = next_node
-        logger.info(f"[{self.name}] Set next node to: {next_node}")
+        # Store results in state
+        state["tool_result"] = tool_result
+        logger.info(f"[{self.name}] Tool execution completed")
 
         return state
+
+    def _execute_tool(self, tool_call: Dict[str, Any], state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute the tool call by running its bash entry script.
+
+        This method:
+        1. Validates the tool_call structure
+        2. Locates the bash entry script (run.sh)
+        3. Prepares the execution environment and arguments
+        4. Executes the script and captures output
+        5. Returns structured results
+
+        Args:
+            tool_call: Dictionary containing:
+                - tool_name: Name of the tool to execute
+                - arguments: Dictionary of arguments to pass
+            state: Current workflow state (for context like data_file paths)
+
+        Returns:
+            Dictionary containing:
+                - status: "success" or "error"
+                - stdout: Standard output from the tool
+                - stderr: Standard error from the tool
+                - exit_code: Process exit code
+                - error: Error message (if any)
+        """
+        # Extract tool name
+        tool_name = tool_call.get("tool_name")
+        if not tool_name:
+            logger.error(f"[{self.name}] No tool_name found in tool_call")
+            return {
+                "status": "error",
+                "error": "Missing tool_name in tool_call",
+                "tool_call": tool_call
+            }
+
+        logger.info(f"[{self.name}] Executing tool: {tool_name}")
+
+        # Locate the bash entry script
+        tool_script_path = os.path.join(self.tools_dir, tool_name, "run.sh")
+        if not os.path.exists(tool_script_path):
+            logger.error(f"[{self.name}] Tool script not found: {tool_script_path}")
+            return {
+                "status": "error",
+                "error": f"Tool script not found: {tool_script_path}",
+                "tool_name": tool_name
+            }
+
+        # Prepare arguments
+        arguments = tool_call.get("args", {})
+        logger.debug(f"[{self.name}] Tool arguments: {arguments}")
+
+        # Prepare environment variables from arguments and state
+        env = os.environ.copy()
+        env_vars = self._prepare_environment(arguments, state)
+        env.update(env_vars)
+
+        logger.debug(f"[{self.name}] Environment variables: {list(env_vars.keys())}")
+
+        # Execute the bash script
+        try:
+            logger.info(f"[{self.name}] Running script: {tool_script_path}")
+
+            result = subprocess.run(
+                ["bash", tool_script_path],
+                env=env,
+                capture_output=True,
+                text=True,
+                timeout=self.timeout,
+                cwd=os.path.dirname(tool_script_path)  # Run in tool directory
+            )
+
+            # Capture results
+            exit_code = result.returncode
+            stderr = result.stderr
+
+            logger.info(f"[{self.name}] Tool completed with exit code: {exit_code}")
+
+            # Construct expected result file path
+            # The tool writes to ROOT_DIR/result.json by default
+            result_file_path = os.path.join(ROOT_DIR, "result.json")
+
+            if not os.path.exists(result_file_path):
+                logger.error(f"[{self.name}] Result file not found at: {result_file_path}")
+                return {
+                    "status": "error",
+                    "tool_name": tool_name,
+                    "error": f"Result file not found: {result_file_path}",
+                    "exit_code": exit_code,
+                    "stderr": stderr,
+                }
+
+            # Read JSON result from file
+            logger.info(f"[{self.name}] Reading results from: {result_file_path}")
+            try:
+                with open(result_file_path, 'r') as f:
+                    result_data = json_module.load(f)
+
+                # Add metadata
+                result_data["tool_name"] = tool_name
+                result_data["exit_code"] = exit_code
+                result_data["stderr"] = stderr  # Keep stderr for logs
+
+                logger.info(f"[{self.name}] Successfully loaded result from file")
+
+                # Delete the result file
+                try:
+                    os.remove(result_file_path)
+                    logger.debug(f"[{self.name}] Deleted result file: {result_file_path}")
+                except Exception as e:
+                    logger.warning(f"[{self.name}] Failed to delete result file: {e}")
+
+                return result_data
+
+            except json_module.JSONDecodeError as e:
+                logger.error(f"[{self.name}] Invalid JSON in result file: {e}")
+                return {
+                    "status": "error",
+                    "tool_name": tool_name,
+                    "error": f"Invalid JSON in result file: {str(e)}",
+                    "exit_code": exit_code,
+                    # "stderr": stderr,
+                }
+            except Exception as e:
+                logger.error(f"[{self.name}] Failed to read result file: {e}")
+                return {
+                    "status": "error",
+                    "tool_name": tool_name,
+                    "error": f"Failed to read result file: {str(e)}",
+                    "exit_code": exit_code,
+                    "stderr": stderr,
+                }
+
+        except subprocess.TimeoutExpired as e:
+            logger.error(f"[{self.name}] Tool execution timeout after {self.timeout}s")
+            return {
+                "status": "error",
+                "tool_name": tool_name,
+                "error": f"Tool execution timeout after {self.timeout} seconds",
+                "stderr": e.stderr if e.stderr else "",
+            }
+
+        except Exception as e:
+            logger.error(f"[{self.name}] Error executing tool: {e}")
+            return {
+                "status": "error",
+                "tool_name": tool_name,
+                "error": f"Execution error: {str(e)}",
+            }
+
+    def _prepare_environment(
+        self,
+        args: Dict[str, Any],
+        state: Dict[str, Any]
+    ) -> Dict[str, str]:
+        """
+        Prepare environment variables from arguments and state.
+
+        This method converts the tool_call arguments into environment variables
+        that can be used in the bash script. Additionally, it includes useful
+        state variables like data_file paths.
+
+        Naming convention:
+        - Arguments are prefixed with TOOL_ARG_
+        - State variables are prefixed with STATE_
+        - All keys are uppercased
+
+        Examples:
+            arguments = {"maxsize": 30, "binary_operators": ["+", "*"]}
+            -> TOOL_ARG_MAXSIZE=30
+            -> TOOL_ARG_BINARY_OPERATORS='["+", "*"]'  (JSON string)
+
+        Args:
+            arguments: Tool call arguments dictionary
+            state: Current workflow state
+
+        Returns:
+            Dictionary of environment variables (all string values)
+        """
+        env_vars = {}
+
+        # Add arguments as environment variables
+        for key, value in args.items():
+            env_key = f"TOOL_ARG_{key.upper()}"
+
+            # Convert to string appropriately
+            if isinstance(value, (list, dict)):
+                # Serialize complex types as JSON
+                env_vars[env_key] = json_module.dumps(value)
+            elif isinstance(value, bool):
+                # Convert boolean to string "true"/"false"
+                env_vars[env_key] = str(value).lower()
+            else:
+                # Convert to string
+                env_vars[env_key] = str(value)
+
+        # Add useful state variables
+        if "data_file" in state:
+            env_vars["STATE_DATA_FILE"] = state["data_file"]
+
+        if "user_query" in state:
+            env_vars["STATE_USER_QUERY"] = state["user_query"]
+
+        return env_vars
 
 
 class SRNode(LLMNode):
@@ -178,7 +390,7 @@ class SRNode(LLMNode):
                 try:
                     with open(tool_spec_file, 'r', encoding='utf-8') as f:
                         tool_spec_content = f.read().strip()
-                    tool_specs_parts.append(tool_spec_content)
+                    tool_specs_parts.append(f"### {tool_name}\n{tool_spec_content}")
                     logger.debug(f"[{self.name}] Loaded tool spec: {tool_name}")
                 except FileNotFoundError:
                     # Log warning but continue - tool spec is optional
@@ -312,6 +524,46 @@ class SRNode(LLMNode):
             )
 
         return response.choices[0].message.content
+
+    def _parse_output(self, output: str, state: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Parse the LLM output and update the state.
+
+        This method:
+          1. Stores the raw output in state[output_key]
+          2. If parse_json is True, extracts JSON and stores in state['parsed_json']
+          3. If parse_tool_calls is True, extracts tool calls and stores in state['tool_calls']
+
+        Args:
+            output: Raw LLM response text.
+            state: Current workflow state to update.
+
+        Returns:
+            Updated state dictionary.
+        """
+        logger.debug(f"[{self.name}] Parsing LLM output (length: {len(output)} chars)")
+
+        # Store raw output
+        state[self.output_key] = output
+
+        # Parse JSON if requested
+        if self.parse_json:
+            parsed_json = self._extract_json(output)
+            if parsed_json:
+                logger.info(f"[{self.name}] Successfully extracted JSON from response")
+                logger.debug(f"[{self.name}] Extracted JSON keys: {list(parsed_json.keys())}")
+                # should be a "tool_call" key
+                tool_call = parsed_json.get("tool_call", {})
+                if tool_call:
+                    logger.info(f"[{self.name}] Successfully extracted tool call from JSON")
+                    logger.debug(f"[{self.name}] Extracted tool call keys: {list(tool_call.keys())}")
+                    state["tool_call"] = tool_call
+                else:
+                    logger.warning(f"[{self.name}] No tool_call found in extracted JSON")
+            else:
+                logger.warning(f"[{self.name}] Failed to extract JSON from response")
+
+        return state
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """

@@ -12,7 +12,7 @@ This script demonstrates:
 from __future__ import annotations
 import sys
 import logging
-from nodes import SRNode
+from nodes import SRNode, ToolSwitchNode
 from core.workflow import Workflow
 
 
@@ -56,7 +56,7 @@ def main():
     print()
 
     # Path to the data file
-    data_file_path = "/home/ubuntu/LLM-SR/llmsr/data/strogatz-ode/noise0.01/bacres1.csv"
+    data_file_path = "/home/ubuntu/LLM-SR/llmsr/data/test.csv"
 
     # Create an SR node with file support
     sr_node = SRNode(
@@ -71,9 +71,17 @@ def main():
         description="An SR node that analyzes data files and prepares symbolic regression tool calls"
     )
 
-    # Create a workflow and add the SR node
+    # Create a tool switch node to execute the tool calls
+    tool_switch_node = ToolSwitchNode(
+        name="tool_executor",
+        description="Executes tool calls and awaits results"
+    )
+
+    # Create a workflow and add both nodes
     workflow = Workflow()
     workflow.add_node(sr_node, is_start=True)
+    workflow.add_node(tool_switch_node)
+    workflow.add_edge(sr_node.name, tool_switch_node.name)
 
     # Get user input from command line
     if len(sys.argv) > 1:
@@ -115,13 +123,22 @@ def main():
         print(result_state.get("llm_response", "No response generated."))
         print()
 
-        # Display extracted tool call if JSON was parsed
-        if "parsed_json" in result_state:
+        # Display extracted tool call if present
+        if "tool_call" in result_state:
             print("-" * 60)
             print("Extracted Tool Call:")
             print("-" * 60)
             import json
-            print(json.dumps(result_state["parsed_json"], indent=2))
+            print(json.dumps(result_state["tool_call"], indent=2))
+            print()
+
+        # Display tool execution results if present
+        if "tool_result" in result_state:
+            print("-" * 60)
+            print("Tool Execution Result:")
+            print("-" * 60)
+            import json
+            print(json.dumps(result_state["tool_result"], indent=2))
             print()
 
         # Display workflow metadata
