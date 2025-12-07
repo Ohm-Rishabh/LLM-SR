@@ -1,7 +1,10 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
+import logging
 
 from core.node import Node
+
+logger = logging.getLogger(__name__)
 
 
 class Workflow:
@@ -55,6 +58,7 @@ class Workflow:
                       becomes the start node by default.
         """
         if node.name in self._nodes:
+            logger.error(f"Attempted to add duplicate node: {node.name}")
             raise ValueError(f"Node with name {node.name!r} already exists.")
 
         self._nodes[node.name] = node
@@ -62,6 +66,9 @@ class Workflow:
 
         if is_start or self._start is None:
             self._start = node.name
+            logger.info(f"Added node '{node.name}' as start node")
+        else:
+            logger.info(f"Added node '{node.name}' to workflow")
 
     def add_edge(self, src: str, dst: str) -> None:
         """
@@ -69,12 +76,15 @@ class Workflow:
         Both nodes must already be in the workflow.
         """
         if src not in self._nodes:
+            logger.error(f"Source node '{src}' not found in workflow")
             raise KeyError(f"Source node {src!r} not found in workflow.")
         if dst not in self._nodes:
+            logger.error(f"Destination node '{dst}' not found in workflow")
             raise KeyError(f"Destination node {dst!r} not found in workflow.")
 
         self._edges.setdefault(src, [])
         self._edges[src].append(dst)
+        logger.debug(f"Added edge: {src} -> {dst}")
 
     def set_start(self, node_name: str) -> None:
         """
@@ -123,8 +133,10 @@ class Workflow:
                 - `_next_node` points to an invalid or non-successor node.
         """
         if self._start is None:
+            logger.error("Attempted to run workflow with no start node")
             raise RuntimeError("No start node set for this workflow.")
 
+        logger.info(f"Starting workflow execution from node '{self._start}'")
         state: Dict[str, Any] = {} if initial_state is None else dict(initial_state)
         visited: List[str] = []
 
@@ -133,11 +145,13 @@ class Workflow:
 
         while current is not None:
             if steps >= max_steps:
+                logger.error(f"Workflow exceeded maximum step limit ({max_steps})")
                 raise RuntimeError(
                     f"Maximum step limit ({max_steps}) exceeded. "
                     "Possible infinite loop in workflow."
                 )
 
+            logger.info(f"Executing node '{current}' (step {steps + 1})")
             node = self._nodes[current]
             state = node.run(state)
             visited.append(current)
@@ -147,29 +161,35 @@ class Workflow:
 
             # No outgoing edges -> terminal node
             if not successors:
+                logger.info(f"Node '{current}' is terminal, ending workflow")
                 current = None
                 continue
 
             # Single successor -> go there
             if len(successors) == 1:
+                logger.debug(f"Node '{current}' has single successor '{successors[0]}'")
                 current = successors[0]
                 continue
 
             # Multiple successors -> expect node to choose via `_next_node`
             next_name = state.pop("_next_node", None)
             if next_name is None:
+                logger.error(f"Node '{current}' has multiple successors but _next_node not set")
                 raise RuntimeError(
                     f"Node {current!r} has multiple successors {successors}, "
                     "but `_next_node` was not set in state."
                 )
             if next_name not in successors:
+                logger.error(f"Invalid _next_node '{next_name}' chosen by node '{current}'")
                 raise RuntimeError(
                     f"Invalid `_next_node` {next_name!r} chosen by node {current!r}. "
                     f"Allowed successors are: {successors}."
                 )
 
+            logger.info(f"Node '{current}' chose successor '{next_name}' from {successors}")
             current = next_name
 
         # Optionally store the execution trace
         state["_visited_nodes"] = visited
+        logger.info(f"Workflow completed successfully. Visited nodes: {visited}")
         return state

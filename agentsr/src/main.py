@@ -11,12 +11,44 @@ This script demonstrates:
 
 from __future__ import annotations
 import sys
+import logging
 from nodes import SRNode
 from core.workflow import Workflow
 
 
+# Configure logging
+def setup_logging(level=logging.INFO):
+    """Configure logging for the application."""
+    import os
+    from core.consts import ROOT_DIR
+
+    # Create logs directory if it doesn't exist
+    log_dir = os.path.join(ROOT_DIR, 'logs')
+    os.makedirs(log_dir, exist_ok=True)
+
+    # Log file path
+    log_file = os.path.join(log_dir, 'agentsr.log')
+
+    # Configure logging with both console and file handlers
+    logging.basicConfig(
+        level=level,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+        datefmt='%Y-%m-%d %H:%M:%S',
+        handlers=[
+            logging.StreamHandler(),  # Console output
+            logging.FileHandler(log_file, mode='a')  # File output
+        ]
+    )
+
+
 def main():
     """Run a simple SR workflow with file support."""
+    # Setup logging (can be set to logging.DEBUG for more verbose output)
+    # Or use environment variable: AGENTSR_LOG_LEVEL=DEBUG
+    import os
+    log_level_name = os.getenv('AGENTSR_LOG_LEVEL', 'INFO').upper()
+    log_level = getattr(logging, log_level_name, logging.INFO)
+    setup_logging(level=log_level)
 
     print("=" * 60)
     print("Symbolic Regression Workflow Example")

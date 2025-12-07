@@ -4,6 +4,9 @@ from typing import Any, Dict, List, Optional, Callable
 import json
 import re
 import os
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class Node(ABC):
@@ -169,6 +172,8 @@ class LLMNode(Node):
         Returns:
             Dictionary with 'text_prompt' and optionally 'files' for data files.
         """
+        logger.debug(f"[{self.name}] Building input from state")
+
         # Load system prompt from file
         system_prompt_text = ""
         if self.system_prompt:
@@ -182,7 +187,9 @@ class LLMNode(Node):
             try:
                 with open(prompt_file, 'r', encoding='utf-8') as f:
                     system_prompt_text = f.read().strip()
+                logger.debug(f"[{self.name}] Loaded system prompt from {prompt_file}")
             except FileNotFoundError:
+                logger.error(f"[{self.name}] System prompt file not found: {prompt_file}")
                 raise FileNotFoundError(
                     f"System prompt file not found: {prompt_file}. "
                     f"Please ensure the file exists in the prompts/ directory."
@@ -256,6 +263,8 @@ class LLMNode(Node):
         Returns:
             Updated state dictionary.
         """
+        logger.debug(f"[{self.name}] Parsing LLM output (length: {len(output)} chars)")
+
         # Store raw output
         state[self.output_key] = output
 
@@ -263,7 +272,11 @@ class LLMNode(Node):
         if self.parse_json:
             parsed_json = self._extract_json(output)
             if parsed_json:
+                logger.info(f"[{self.name}] Successfully extracted JSON from response")
+                logger.debug(f"[{self.name}] Extracted JSON keys: {list(parsed_json.keys())}")
                 state["parsed_json"] = parsed_json
+            else:
+                logger.warning(f"[{self.name}] Failed to extract JSON from response")
 
         return state
 
@@ -321,10 +334,14 @@ class LLMNode(Node):
         try:
             from openai import OpenAI
         except ImportError:
+            logger.error(f"[{self.name}] OpenAI package not installed")
             raise ImportError(
                 "openai package is required for LLMNode. "
                 "Install with: pip install openai"
             )
+
+        logger.info(f"[{self.name}] Calling OpenAI API with model={self.model}")
+        logger.debug(f"[{self.name}] Prompt length: {len(user_prompt)} chars, temp={self.temperature}, max_tokens={self.max_tokens}")
 
         client = OpenAI()
         response = client.responses.create(
@@ -332,6 +349,7 @@ class LLMNode(Node):
             input=user_prompt,
         )
 
+        logger.info(f"[{self.name}] Received response from OpenAI API")
         return response.output_text
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
@@ -350,6 +368,8 @@ class LLMNode(Node):
         Returns:
             Updated state dictionary.
         """
+        logger.info(f"[{self.name}] Starting LLMNode execution")
+
         # Build input prompt
         user_prompt = self._build_input(state)
 
@@ -359,6 +379,7 @@ class LLMNode(Node):
         # Parse output and update state
         state = self._parse_output(llm_output, state)
 
+        logger.info(f"[{self.name}] Completed LLMNode execution")
         return state
 
 
@@ -434,13 +455,18 @@ class ToolNode(Node):
         Returns:
             Updated state dictionary.
         """
+        logger.info(f"[{self.name}] Starting ToolNode execution")
+
         # Build input arguments
         tool_args = self._build_input(state)
+        logger.debug(f"[{self.name}] Tool arguments: {list(tool_args.keys())}")
 
         # Execute the tool
         tool_output = self.tool_fn(**tool_args)
+        logger.debug(f"[{self.name}] Tool execution completed")
 
         # Parse output and update state
         state = self._parse_output(tool_output, state)
 
+        logger.info(f"[{self.name}] Completed ToolNode execution")
         return state

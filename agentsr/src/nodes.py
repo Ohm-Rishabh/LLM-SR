@@ -3,6 +3,9 @@ from core.consts import ROOT_DIR, SRC_DIR
 from typing import Any, Dict, List, Optional
 import os
 import base64
+import logging
+
+logger = logging.getLogger(__name__)
 
 class ToolSwitchNode(LLMNode):
     """
@@ -46,21 +49,27 @@ class ToolSwitchNode(LLMNode):
         Returns:
             Updated state with tool selection.
         """
+        logger.info(f"[{self.name}] Starting tool selection")
+
         # Call parent run to get LLM output
         state = super().run(state)
 
         # Extract tool selection from parsed JSON
         if "parsed_json" in state and "tool" in state["parsed_json"]:
             selected_tool = state["parsed_json"]["tool"]
+            logger.info(f"[{self.name}] Selected tool from JSON: {selected_tool}")
         else:
             # Default to linear regression if no tool specified
             selected_tool = "linear_regression"
+            logger.warning(f"[{self.name}] No tool found in JSON, defaulting to: {selected_tool}")
 
         # Store the selected tool
         state["selected_tool"] = selected_tool
 
         # Set the next node based on the selected tool
-        state["_next_node"] = f"tool_{selected_tool}"
+        next_node = f"tool_{selected_tool}"
+        state["_next_node"] = next_node
+        logger.info(f"[{self.name}] Set next node to: {next_node}")
 
         return state
 
@@ -162,6 +171,7 @@ class SRNode(LLMNode):
 
         # Load tool specifications if tool_list is provided
         if self.tool_list:
+            logger.debug(f"[{self.name}] Loading tool specifications for: {self.tool_list}")
             tool_specs_parts = []
             for tool_name in self.tool_list:
                 tool_spec_file = os.path.join(ROOT_DIR, "tool_specs", f"{tool_name}.md")
@@ -169,15 +179,17 @@ class SRNode(LLMNode):
                     with open(tool_spec_file, 'r', encoding='utf-8') as f:
                         tool_spec_content = f.read().strip()
                     tool_specs_parts.append(tool_spec_content)
+                    logger.debug(f"[{self.name}] Loaded tool spec: {tool_name}")
                 except FileNotFoundError:
                     # Log warning but continue - tool spec is optional
-                    print(f"Warning: Tool spec file not found: {tool_spec_file}")
+                    logger.warning(f"[{self.name}] Tool spec file not found: {tool_spec_file}")
                     continue
 
             if tool_specs_parts:
                 tool_specs_text = "\n\n---\n\n".join(tool_specs_parts)
                 # Append tool specs to system prompt
                 system_prompt_text = system_prompt_text + "\n\n" + tool_specs_text
+                logger.info(f"[{self.name}] Appended {len(tool_specs_parts)} tool spec(s) to system prompt")
 
         # Build user prompt from state
         if self.input_keys:
@@ -203,6 +215,7 @@ class SRNode(LLMNode):
 
         # Add file content blocks if specified
         if self.file_keys:
+            logger.debug(f"[{self.name}] Processing {len(self.file_keys)} file key(s)")
             for key in self.file_keys:
                 if key in state:
                     file_path = state[key]
@@ -221,6 +234,7 @@ class SRNode(LLMNode):
                                     "url": f"data:image/{ext};base64,{image_data}"
                                 }
                             })
+                            logger.info(f"[{self.name}] Added image file: {os.path.basename(file_path)} ({ext})")
                         else:
                             # Handle text files (CSV, code, logs, etc.)
                             with open(file_path, 'r', encoding='utf-8') as f:
@@ -229,7 +243,9 @@ class SRNode(LLMNode):
                                 "type": "text",
                                 "text": f"\n\n--- File: {os.path.basename(file_path)} ---\n{file_content}\n--- End of file ---\n"
                             })
+                            logger.info(f"[{self.name}] Added text file: {os.path.basename(file_path)} ({len(file_content)} chars)")
                     except Exception as e:
+                        logger.error(f"[{self.name}] Error reading file {file_path} (key: {key}): {e}")
                         raise IOError(f"Error reading file {file_path} (key: {key}): {e}")
 
         return {
@@ -253,6 +269,7 @@ class SRNode(LLMNode):
         try:
             from openai import OpenAI
         except ImportError:
+            logger.error(f"[{self.name}] OpenAI package not installed")
             raise ImportError(
                 "openai package is required for SRNode. "
                 "Install with: pip install openai"
@@ -272,6 +289,9 @@ class SRNode(LLMNode):
             "content": prompt_data["user_content"]
         })
 
+        logger.info(f"[{self.name}] Calling OpenAI Chat Completions API with model={self.model}")
+        logger.debug(f"[{self.name}] Message count: {len(messages)}, content blocks: {len(prompt_data['user_content'])}")
+
         # Call OpenAI Chat Completions API
         response = client.chat.completions.create(
             model=self.model,
@@ -279,6 +299,17 @@ class SRNode(LLMNode):
             temperature=self.temperature,
             max_tokens=self.max_tokens
         )
+
+        logger.info(f"[{self.name}] Received response from OpenAI Chat Completions API")
+
+        # Log token usage
+        if hasattr(response, 'usage') and response.usage:
+            logger.info(
+                f"[{self.name}] Token usage - "
+                f"Prompt: {response.usage.prompt_tokens}, "
+                f"Completion: {response.usage.completion_tokens}, "
+                f"Total: {response.usage.total_tokens}"
+            )
 
         return response.choices[0].message.content
 
