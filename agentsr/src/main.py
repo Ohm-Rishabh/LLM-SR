@@ -31,6 +31,7 @@ def main():
         name="sr_analyzer",
         system_prompt="sr_analyzer",  # Uses prompts/sr_analyzer.md
         file_keys=["data_file"],  # State key containing the file path
+        tool_list=["pysr"],  # Available tools - loads tool_specs/pysr.md
         model="gpt-4o-mini",
         temperature=0.7,
         max_tokens=8192,

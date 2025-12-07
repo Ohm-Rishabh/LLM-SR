@@ -83,6 +83,7 @@ class SRNode(LLMNode):
         system_prompt: str = "",
         input_keys: Optional[List[str]] = None,
         file_keys: Optional[List[str]] = None,
+        tool_list: Optional[List[str]] = None,
         output_key: str = "llm_response",
         model: str = "gpt-4.1-mini",
         temperature: float = 0.7,
@@ -101,6 +102,10 @@ class SRNode(LLMNode):
             file_keys: List of state keys that contain file paths to be read and included.
                       Files will be included as separate content blocks in the API call.
                       Example: ["data_file", "config_file"]
+            tool_list: List of tool names to load specifications for.
+                      Tool specs are loaded from tool_specs/{tool_name}.md files.
+                      Example: ["pysr", "gplearn", "linear_regression"]
+                      If None, no tool specs are loaded.
             output_key: State key where the raw LLM response will be stored.
             model: OpenAI model name (e.g., 'gpt-4', 'gpt-4o' for vision).
             temperature: Sampling temperature (0.0 to 2.0).
@@ -120,6 +125,7 @@ class SRNode(LLMNode):
             parse_json=parse_json,
             description=description,
         )
+        self.tool_list = tool_list
 
     def _build_input(self, state: Dict[str, Any]) -> Dict[str, Any]:
         """
@@ -154,6 +160,25 @@ class SRNode(LLMNode):
                     f"Please ensure the file exists in the prompts/ directory."
                 )
 
+        # Load tool specifications if tool_list is provided
+        if self.tool_list:
+            tool_specs_parts = []
+            for tool_name in self.tool_list:
+                tool_spec_file = os.path.join(ROOT_DIR, "tool_specs", f"{tool_name}.md")
+                try:
+                    with open(tool_spec_file, 'r', encoding='utf-8') as f:
+                        tool_spec_content = f.read().strip()
+                    tool_specs_parts.append(tool_spec_content)
+                except FileNotFoundError:
+                    # Log warning but continue - tool spec is optional
+                    print(f"Warning: Tool spec file not found: {tool_spec_file}")
+                    continue
+
+            if tool_specs_parts:
+                tool_specs_text = "\n\n---\n\n".join(tool_specs_parts)
+                # Append tool specs to system prompt
+                system_prompt_text = system_prompt_text + "\n\n" + tool_specs_text
+
         # Build user prompt from state
         if self.input_keys:
             # Use only specified keys
@@ -165,8 +190,9 @@ class SRNode(LLMNode):
         else:
             # Use all non-internal keys (excluding file keys to avoid duplication)
             parts = []
+            file_keys_set = set(self.file_keys) if self.file_keys else set()
             for key, value in state.items():
-                if not key.startswith("_") and key not in self.file_keys:
+                if not key.startswith("_") and key not in file_keys_set:
                     parts.append(f"{key}: {value}")
             user_prompt = "\n".join(parts)
 

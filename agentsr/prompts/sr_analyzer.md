@@ -92,3 +92,8 @@ Given the clear periodic patterns, I'm selecting PySR (Python Symbolic Regressio
 - The JSON must be valid and parseable
 - Choose tool parameters based on the specific characteristics of the data
 - Consider computational cost vs. accuracy trade-offs in your parameter selection
+- Review the available tools and their specifications below before making your selection
+
+## Available Tools
+
+The following symbolic regression tools are available for use. Detailed specifications for each tool are provided below。
