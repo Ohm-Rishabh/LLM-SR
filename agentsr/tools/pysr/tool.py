@@ -27,6 +27,31 @@ from common.result_manager import write_result
 warnings.filterwarnings('ignore')
 
 
+def calculate_mape(y_true, y_pred):
+    """
+    Calculate Mean Absolute Percentage Error (MAPE) in percent.
+
+    Args:
+        y_true: Array-like of true target values.
+        y_pred: Array-like of predicted values.
+
+    Returns:
+        MAPE as a float in percentage (e.g., 12.3 means 12.3%).
+        Returns np.nan if MAPE is undefined (e.g., all y_true are zero or invalid).
+    """
+    y_true = np.asarray(y_true, dtype=float)
+    y_pred = np.asarray(y_pred, dtype=float)
+
+    # Valid entries: finite and non-zero true values
+    mask = np.isfinite(y_true) & np.isfinite(y_pred) & (y_true != 0)
+
+    if not np.any(mask):
+        return np.nan
+
+    mape = np.mean(np.abs((y_true[mask] - y_pred[mask]) / y_true[mask])) * 100.0
+    return float(mape)
+
+
 def parse_env_arg(key, default=None, arg_type=str):
     """
     Parse an environment variable argument.
@@ -208,30 +233,43 @@ def main():
         best_idx = model.equations_.score.idxmax()
         best_equation = model.equations_.iloc[best_idx]
 
+        # Calculate MAPE for best equation
+        best_predictions = model.predict(X, index=best_idx)
+        best_mape = calculate_mape(y, best_predictions)
+
         print(f"\nBest equation (index {best_idx}):", file=sys.stderr)
         print(f"  Complexity: {best_equation['complexity']}", file=sys.stderr)
         print(f"  Loss: {best_equation['loss']}", file=sys.stderr)
         print(f"  Score: {best_equation['score']}", file=sys.stderr)
+        print(f"  MAPE: {best_mape:.4f}%", file=sys.stderr)
         print(f"  Equation: {best_equation['equation']}", file=sys.stderr)
+
+        # Calculate MAPE for all equations
+        all_equations = []
+        for idx, row in equations.iterrows():
+            predictions = model.predict(X, index=idx)
+            mape = calculate_mape(y, predictions)
+            all_equations.append({
+                "expression": str(row['equation']),
+                "complexity": int(row['complexity']),
+                "loss": float(f"{row['loss']:.3f}"),
+                "score": float(f"{row['score']:.3f}"),
+                "mape": float(mape),
+            })
 
         # Prepare results for output
         results = {
+            "tool_name": "pysr",
+            "result_type": "equations",
             "status": "success",
             "best_equation": {
                 "expression": str(best_equation['equation']),
                 "complexity": int(best_equation['complexity']),
-                "loss": float(best_equation['loss']),
-                "score": float(best_equation['score']),
+                "loss": float(f"{best_equation['loss']:.3f}"),
+                "score": float(f"{best_equation['score']:.3f}"),
+                "mape": float(f"{best_mape:.3f}"),
             },
-            "all_equations": [
-                {
-                    "expression": str(row['equation']),
-                    "complexity": int(row['complexity']),
-                    "loss": float(row['loss']),
-                    "score": float(row['score']),
-                }
-                for _, row in equations.iterrows()
-            ],
+            "all_equations": all_equations,
             "feature_names": feature_names,
             "target_name": target_name,
             "configuration": {

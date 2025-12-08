@@ -5,6 +5,7 @@ import json
 import re
 import os
 import logging
+from core.consts import ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -177,12 +178,7 @@ class LLMNode(Node):
         # Load system prompt from file
         system_prompt_text = ""
         if self.system_prompt:
-            prompt_file = os.path.join("prompts", f"{self.system_prompt}.md")
-            # Try relative to current working directory first
-            if not os.path.exists(prompt_file):
-                # Try relative to the script's directory
-                script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-                prompt_file = os.path.join(script_dir, "prompts", f"{self.system_prompt}.md")
+            prompt_file = os.path.join(ROOT_DIR, "prompts", f"{self.system_prompt}.md")
 
             try:
                 with open(prompt_file, 'r', encoding='utf-8') as f:
@@ -383,90 +379,45 @@ class LLMNode(Node):
         return state
 
 
-class ToolNode(Node):
+class LoopController(Node):
     """
-    Node that executes a predefined function/tool.
-
-    This node wraps a callable function and executes it with inputs from the state.
+    Decides whether to continue looping or exit upon a maximum number of iterations.
     """
-
     def __init__(
         self,
         name: str,
-        tool_fn: Callable,
-        input_keys: Optional[List[str]] = None,
-        output_key: str = "tool_output",
+        continue_node_id: str,
+        exit_node_id: str,
+        max_iterations: int = 10,
         description: str = "",
     ) -> None:
-        """
-        Initialize a ToolNode.
-
-        Args:
-            name: Unique name for this node.
-            tool_fn: The function to execute. Should accept keyword arguments.
-            input_keys: List of state keys to pass as arguments to tool_fn.
-                       If None, passes all non-internal keys.
-            output_key: State key where the tool output will be stored.
-            description: Human-readable description of this node's purpose.
-        """
         super().__init__(name, description)
-        self.tool_fn = tool_fn
-        self.input_keys = input_keys
-        self.output_key = output_key
-
-    def _build_input(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Extract input arguments for the tool from the state.
-
-        Args:
-            state: Current workflow state.
-
-        Returns:
-            Dictionary of arguments to pass to the tool function.
-        """
-        if self.input_keys:
-            # Use only specified keys
-            return {key: state[key] for key in self.input_keys if key in state}
-        else:
-            # Use all non-internal keys
-            return {key: value for key, value in state.items() if not key.startswith("_")}
-
-    def _parse_output(self, output: Any, state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Store the tool output in the state.
-
-        Args:
-            output: The return value from the tool function.
-            state: Current workflow state to update.
-
-        Returns:
-            Updated state dictionary.
-        """
-        state[self.output_key] = output
-        return state
+        self.continue_node_id = continue_node_id
+        self.exit_node_id = exit_node_id
+        self.max_iterations = max_iterations
+        self.current_iteration = 0
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Execute the tool node.
-
-        Args:
-            state: Current workflow state.
-
-        Returns:
-            Updated state dictionary.
-        """
-        logger.info(f"[{self.name}] Starting ToolNode execution")
-
-        # Build input arguments
-        tool_args = self._build_input(state)
-        logger.debug(f"[{self.name}] Tool arguments: {list(tool_args.keys())}")
-
-        # Execute the tool
-        tool_output = self.tool_fn(**tool_args)
-        logger.debug(f"[{self.name}] Tool execution completed")
-
-        # Parse output and update state
-        state = self._parse_output(tool_output, state)
-
-        logger.info(f"[{self.name}] Completed ToolNode execution")
+        if self.current_iteration < self.max_iterations:
+            self.current_iteration += 1
+            state["_next_node"] = self.continue_node_id
+        else:
+            state["_next_node"] = self.exit_node_id
         return state
+    
+
+class TransformNode(Node):
+    """
+    Transform the state using a provided function.
+    """
+    def __init__(
+        self,
+        name: str,
+        transform_fn: Callable[[Dict[str, Any]], Dict[str, Any]],
+        description: str = "",
+    ) -> None:
+        super().__init__(name, description)
+        self.transform_fn = transform_fn
+
+    def run(self, state: Dict[str, Any]) -> Dict[str, Any]:
+        return self.transform_fn(state)

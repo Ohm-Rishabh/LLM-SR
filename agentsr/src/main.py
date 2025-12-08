@@ -14,6 +14,8 @@ import sys
 import logging
 from nodes import SRNode, ToolSwitchNode
 from core.workflow import Workflow
+from core.node import LoopController, TransformNode, LLMNode
+from transforms import add_tool_results_to_experience
 
 
 # Configure logging
@@ -77,11 +79,51 @@ def main():
         description="Executes tool calls and awaits results"
     )
 
-    # Create a workflow and add both nodes
+    add_tool_results_transform = TransformNode(
+        name="add_tool_results",
+        transform_fn=add_tool_results_to_experience,
+        description="Adds tool results to the agent's experience log"
+    )
+
+    exit_node = TransformNode(
+        name="exit",
+        transform_fn=lambda state: state,  # No-op
+        description="Exit node to terminate the workflow"
+    )
+
+    # Loop controller
+    loop_controller = LoopController(
+        name="loop_controller",
+        max_iterations=3,
+        continue_node_id="sr_analyzer",
+        exit_node_id="summary",
+    )
+
+    # summary node when reaching exit condition
+    summary_node = LLMNode(
+        name="summary",
+        system_prompt="summary",
+        input_keys=["experience"],
+        output_key="summary",
+        model="gpt-4o-mini",
+        parse_json=True,
+    )
+
+    # Create a workflow and add nodes
     workflow = Workflow()
     workflow.add_node(sr_node, is_start=True)
     workflow.add_node(tool_switch_node)
-    workflow.add_edge(sr_node.name, tool_switch_node.name)
+    workflow.add_node(loop_controller)
+    workflow.add_node(summary_node)
+    workflow.add_node(exit_node)
+    workflow.add_node(add_tool_results_transform)
+    # Add edges
+    workflow.add_edge(sr_node, tool_switch_node)
+    workflow.add_edge(sr_node, exit_node)
+    workflow.add_edge(tool_switch_node, add_tool_results_transform)
+    workflow.add_edge(add_tool_results_transform, loop_controller)
+    workflow.add_edge(loop_controller, sr_node)
+    workflow.add_edge(loop_controller, summary_node)
 
     # Get user input from command line
     if len(sys.argv) > 1:
@@ -96,11 +138,11 @@ def main():
             print("Goodbye!")
             return
 
-    if not user_input:
-        print("Error: No input provided.")
-        print("Usage: python main.py <your message>")
-        print("   or: python main.py  (for interactive mode)")
-        return
+    # if not user_input:
+    #     print("Error: No input provided.")
+    #     print("Usage: python main.py <your message>")
+    #     print("   or: python main.py  (for interactive mode)")
+    #     return
 
     print()
     print(f"User: {user_input}")

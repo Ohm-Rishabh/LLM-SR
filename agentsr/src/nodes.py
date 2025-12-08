@@ -558,8 +558,15 @@ class SRNode(LLMNode):
                     logger.info(f"[{self.name}] Successfully extracted tool call from JSON")
                     logger.debug(f"[{self.name}] Extracted tool call keys: {list(tool_call.keys())}")
                     state["tool_call"] = tool_call
+                    state["_next_node"] = "tool_executor"
                 else:
-                    logger.warning(f"[{self.name}] No tool_call found in extracted JSON")
+                    final_result = parsed_json.get("final_result")
+                    if final_result:
+                        logger.info(f"[{self.name}] Extracted final_result from JSON, setting exit node")
+                        state["final_result"] = final_result
+                        state["_next_node"] = "exit"
+                    else:
+                        logger.warning(f"[{self.name}] No tool_call or final_result found in extracted JSON")
             else:
                 logger.warning(f"[{self.name}] Failed to extract JSON from response")
 
