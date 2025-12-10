@@ -58,46 +58,6 @@ or, in case you decide no more tool calls are needed:
 }
 ```
 
-## Example Response
-
-Given a CSV file with columns [t, x, y, target] containing 1000 samples of time-series data:
-
----
-
-I've analyzed the provided CSV file and here's what I found:
-
-**Data Structure:**
-- Format: CSV with 1000 samples
-- Features: 3 columns (t, x, y)
-- Target: Single output column named "target"
-- Data quality: Clean, no missing values detected
-
-**Observed Patterns:**
-The target variable exhibits strong periodic/oscillatory behavior when plotted against time (t). The amplitude and frequency appear relatively consistent, suggesting a trigonometric relationship. The pattern is smooth with low noise, indicating the underlying function is likely deterministic.
-
-**Complexity Assessment:**
-Based on the periodic nature and smooth oscillations, I estimate this is a transcendental relationship involving trigonometric functions (sine, cosine) rather than simple polynomial terms.
-
-**Tool Selection Reasoning:**
-Given the clear periodic patterns, I'm selecting PySR (Python Symbolic Regression) as it can handle trigonometric operators effectively. I'm including sin, cos, exp, and log in the unary operators to capture the oscillatory behavior. The clean data with 1000 samples provides a good foundation for evolutionary search, so I'm using moderate iteration count (40) and standard population size (33).
-
-```json
-{
-  "tool_call": {
-    "tool_name": "PySR",
-    "args": {
-      "niterations": 40,
-      "binary_operators": ["+", "-", "*", "/"],
-      "unary_operators": ["sin", "cos", "exp", "log"],
-      "population_size": 33,
-      "maxsize": 20
-    }
-  }
-}
-```
-
----
-
 ## Important Notes
 
 - Provide detailed analysis and reasoning in natural language

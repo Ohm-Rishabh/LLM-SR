@@ -28,5 +28,3 @@ fi
 # Environment variables are automatically available to the Python script
 echo "Executing tool.py..." >&2
 python tool.py
-
-# Script completes - no need to deactivate (subprocess ends)

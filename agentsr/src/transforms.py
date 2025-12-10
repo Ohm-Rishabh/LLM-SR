@@ -19,4 +19,6 @@ def add_tool_results_to_experience(state: Dict[str, any]) -> Dict[str, any]:
         })
         state["experience"] = experience
 
+    state.pop("tool_call", None)
+
     return state
