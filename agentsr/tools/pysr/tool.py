@@ -193,12 +193,13 @@ def main():
     """Main execution function."""
     try:
         # Get data file from environment
-        data_file = os.environ.get('STATE_DATA_FILE')
+        data_file = os.environ.get('TOOL_ARG_INPUT_FILE')
         if not data_file:
-            raise ValueError("STATE_DATA_FILE environment variable not set")
+            raise ValueError("TOOL_ARG_INPUT_FILE environment variable not set")
+        data_file = os.path.join(os.environ.get('WORKSPACE_INPUT', ''), data_file)
 
         if not os.path.exists(data_file):
-            raise FileNotFoundError(f"Data file not found: {data_file}")
+            raise FileNotFoundError(f"Input file not found: {data_file}")
 
         # Load data
         X, y, feature_names, target_name = load_data(data_file)

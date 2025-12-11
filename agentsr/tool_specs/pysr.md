@@ -1,10 +1,9 @@
 #### Description
 
-**pysr** is a high-performance symbolic regression tool that uses evolutionary algorithms to discover mathematical equations that fit your data. It is built on top of SymbolicRegression.jl (Julia) for computational efficiency while providing a Python interface compatible with scikit-learn.
+**pysr** is a high-performance symbolic regression tool that uses evolutionary algorithms to discover mathematical equations that fit your data.
 
 **Best For:**
 - Complex non-linear relationships
-- Discovering interpretable mathematical equations from data
 - High-dimensional feature spaces
 - When accuracy and expressiveness are priorities
 
@@ -13,13 +12,14 @@
 - Highly customizable operators (arithmetic, trigonometric, special functions)
 - Multi-population parallel search
 - Built-in simplification and regularization
-- Export to multiple formats (SymPy, PyTorch, JAX, C, etc.)
 
 **Limitations:**
 - Computationally intensive for large equation searches
 - May require parameter tuning for optimal performance
 
 #### Required Arguments
+
+- **`input_file`** (string): name of the data file under the input subdirectory of the workspace. Only include the file name instead of the full path (e.g., `data.csv` instead of `input/data.csv`).
 
 - **`binary_operators`** (list of strings)
   - Binary operators (two inputs) to use in equation building
@@ -156,7 +156,7 @@
 ```json
 {
   "tool_name": "pysr",
-  "arguments": {
+  "args": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": [],
     "niterations": 20,
@@ -167,49 +167,17 @@
 }
 ```
 
-##### Non-linear with Trigonometric Functions
+##### Non-linear with Trigonometric and Exponential Functions
 ```json
 {
   "tool_name": "pysr",
-  "arguments": {
+  "args": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": ["sin", "cos", "exp", "log"],
     "niterations": 40,
     "populations": 20,
     "population_size": 50,
     "maxsize": 20
-  }
-}
-```
-
-##### Quick Exploration (Fast)
-```json
-{
-  "tool_name": "pysr",
-  "arguments": {
-    "binary_operators": ["+", "-", "*"],
-    "unary_operators": ["square"],
-    "niterations": 5,
-    "populations": 10,
-    "population_size": 20,
-    "maxsize": 10,
-    "timeout_in_seconds": 60
-  }
-}
-```
-
-##### High-Dimensional with Feature Selection
-```json
-{
-  "tool_name": "pysr",
-  "arguments": {
-    "binary_operators": ["+", "-", "*", "/"],
-    "unary_operators": ["exp", "log"],
-    "select_k_features": 5,
-    "niterations": 30,
-    "populations": 15,
-    "population_size": 40,
-    "maxsize": 18
   }
 }
 ```

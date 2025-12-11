@@ -1,8 +1,12 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional
+from pathlib import Path
 import logging
+import os
 
 from core.node import Node
+from core.workspace import WorkspaceManager
+from core.consts import ROOT_DIR
 
 logger = logging.getLogger(__name__)
 
@@ -33,10 +37,29 @@ class Workflow:
                 (If not provided, raise an error.)
     """
 
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        workspace_base_dir: Optional[Path] = None,
+        enable_workspace: bool = True
+    ) -> None:
+        """
+        Initialize the workflow.
+
+        Args:
+            workspace_base_dir: Base directory for workspaces (default: ROOT_DIR/workspaces)
+            enable_workspace: Enable workspace support (default: True)
+        """
         self._nodes: Dict[str, Node] = {}
         self._edges: Dict[str, List[str]] = {}
         self._start: Optional[str] = None
+
+        # Workspace configuration
+        self.enable_workspace = enable_workspace
+        if workspace_base_dir is None:
+            workspace_base_dir = Path(ROOT_DIR) / "workspaces"
+            os.makedirs(workspace_base_dir, exist_ok=True)
+        self.workspace_base_dir = Path(workspace_base_dir)
+        self.workspace_manager: Optional[WorkspaceManager] = None
 
     def build_workflow(self) -> None:
         """
@@ -119,6 +142,8 @@ class Workflow:
         self,
         initial_state: Optional[Dict[str, Any]] = None,
         max_steps: int = 1000,
+        cleanup_old_workspaces: bool = False,
+        keep_last_n_workspaces: int = 10,
     ) -> Dict[str, Any]:
         """
         Run the workflow from the start node until termination.
@@ -126,6 +151,8 @@ class Workflow:
         Args:
             initial_state: Optional initial state dict. If None, use {}.
             max_steps: Safety cap to avoid infinite loops in graphs with cycles.
+            cleanup_old_workspaces: If True, clean up old workspaces after run.
+            keep_last_n_workspaces: Number of recent workspaces to keep during cleanup.
 
         Returns:
             Final state dictionary after the workflow terminates.
@@ -142,8 +169,42 @@ class Workflow:
 
         logger.info(f"Starting workflow execution from node '{self._start}'")
         state: Dict[str, Any] = {} if initial_state is None else dict(initial_state)
-        visited: List[str] = []
 
+        # Initialize workspace if enabled
+        if self.enable_workspace:
+            self.workspace_manager = WorkspaceManager(self.workspace_base_dir)
+            workspace_path = self.workspace_manager.create_workspace()
+            logger.info(f"Created workspace: {workspace_path}")
+
+            # Inject workspace manager into all nodes
+            for node in self._nodes.values():
+                node.set_workspace_manager(self.workspace_manager)
+            logger.debug(f"Injected workspace manager into {len(self._nodes)} node(s)")
+
+            # Add workspace information to state
+            state["_workspace_root"] = str(workspace_path)
+            state["_workspace_manager"] = self.workspace_manager
+
+            # Copy input data file to workspace if provided
+            if "input_file" in state:
+                original_path = Path(state["input_file"])
+                file_name = original_path.name
+                if original_path.exists():
+                    try:
+                        workspace_data_path = self.workspace_manager.copy_input_file(
+                            original_path,
+                            file_name
+                        )
+                        # Update state to point to workspace copy
+                        state["input_file"] = str(workspace_data_path)
+                        logger.info(f"Copied input file to workspace: {workspace_data_path}")
+                    except Exception as e:
+                        logger.warning(f"Failed to copy input file to workspace: {e}")
+                        # Keep original path in state
+                else:
+                    logger.warning(f"Input file not found: {original_path}")
+
+        visited: List[str] = []
         current = self._start
         steps = 0
 
@@ -195,5 +256,22 @@ class Workflow:
 
         # Optionally store the execution trace
         state["_visited_nodes"] = visited
+
+        # Store workspace path in state for reference
+        if self.enable_workspace and self.workspace_manager:
+            state["_workspace_path"] = str(self.workspace_manager.workspace_root)
+            logger.info(f"Workspace: {self.workspace_manager.workspace_root}")
+
+        # Optional cleanup of old workspaces
+        if cleanup_old_workspaces and self.enable_workspace:
+            try:
+                removed_count = WorkspaceManager.cleanup_old_workspaces(
+                    self.workspace_base_dir,
+                    keep_last_n=keep_last_n_workspaces
+                )
+                logger.info(f"Cleaned up {removed_count} old workspace(s)")
+            except Exception as e:
+                logger.warning(f"Failed to cleanup old workspaces: {e}")
+
         logger.info(f"Workflow completed successfully. Visited nodes: {visited}")
         return state

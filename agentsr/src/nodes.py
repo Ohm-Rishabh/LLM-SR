@@ -240,11 +240,12 @@ class ToolSwitchNode(Node):
 
         This method converts the tool_call arguments into environment variables
         that can be used in the bash script. Additionally, it includes useful
-        state variables like data_file paths.
+        state variables like data_file paths and workspace directories.
 
         Naming convention:
         - Arguments are prefixed with TOOL_ARG_
         - State variables are prefixed with STATE_
+        - Workspace paths are prefixed with WORKSPACE_
         - All keys are uppercased
 
         Examples:
@@ -277,25 +278,26 @@ class ToolSwitchNode(Node):
                 env_vars[env_key] = str(value)
 
         # Add useful state variables
-        if "data_file" in state:
-            env_vars["STATE_DATA_FILE"] = state["data_file"]
-
         if "user_query" in state:
             env_vars["STATE_USER_QUERY"] = state["user_query"]
+
+        # Add workspace environment variables
+        if "_workspace_root" in state:
+            workspace_root = state["_workspace_root"]
+            env_vars["WORKSPACE_ROOT"] = workspace_root
+            # Also provide convenient paths to standard subdirectories
+            env_vars["WORKSPACE_INPUT"] = os.path.join(workspace_root, "input")
+            env_vars["WORKSPACE_OUTPUT"] = os.path.join(workspace_root, "output")
+            env_vars["WORKSPACE_LOGS"] = os.path.join(workspace_root, "logs")
+            env_vars["WORKSPACE_SCRATCH"] = os.path.join(workspace_root, "scratch")
+            logger.debug(f"[{self.name}] Added workspace environment variables")
 
         return env_vars
 
 
 class SRNode(LLMNode):
     """
-    Symbolic Regression Node with file handling capabilities.
-
-    This node extends LLMNode to support passing local files to the OpenAI API.
-    It can handle:
-    - Text files (CSV, code, logs, etc.) - included as text content blocks
-    - Image files (PNG, JPG, etc.) - included as base64-encoded images for vision models
-
-    Files are specified via file_keys parameter and their paths should be in the state.
+    Main node for symbolic regression.
     """
 
     def __init__(
@@ -303,7 +305,6 @@ class SRNode(LLMNode):
         name: str,
         system_prompt: str = "",
         input_keys: Optional[List[str]] = None,
-        file_keys: Optional[List[str]] = None,
         tool_list: Optional[List[str]] = None,
         output_key: str = "llm_response",
         model: str = "gpt-4.1-mini",
@@ -320,9 +321,6 @@ class SRNode(LLMNode):
             system_prompt: System instructions for the LLM (name of .md file in prompts/).
             input_keys: List of state keys to include in the user message.
                        If None, includes all non-internal keys (those not starting with '_').
-            file_keys: List of state keys that contain file paths to be read and included.
-                      Files will be included as separate content blocks in the API call.
-                      Example: ["data_file", "config_file"]
             tool_list: List of tool names to load specifications for.
                       Tool specs are loaded from tool_specs/{tool_name}.md files.
                       Example: ["pysr", "gplearn", "linear_regression"]
@@ -338,7 +336,6 @@ class SRNode(LLMNode):
             name=name,
             system_prompt=system_prompt,
             input_keys=input_keys,
-            file_keys=file_keys,
             output_key=output_key,
             model=model,
             temperature=temperature,
@@ -384,6 +381,7 @@ class SRNode(LLMNode):
         # Load tool specifications if tool_list is provided
         if self.tool_list:
             logger.debug(f"[{self.name}] Loading tool specifications for: {self.tool_list}")
+            system_prompt_text = system_prompt_text + "\n\n## Available Tools\nThe following tools are available for use:"
             tool_specs_parts = []
             for tool_name in self.tool_list:
                 tool_spec_file = os.path.join(ROOT_DIR, "tool_specs", f"{tool_name}.md")
@@ -414,51 +412,26 @@ class SRNode(LLMNode):
         else:
             # Use all non-internal keys (excluding file keys to avoid duplication)
             parts = []
-            file_keys_set = set(self.file_keys) if self.file_keys else set()
             for key, value in state.items():
-                if not key.startswith("_") and key not in file_keys_set:
+                if not key.startswith("_"):
                     parts.append(f"{key}: {value}")
             user_prompt = "\n".join(parts)
 
         user_prompt = user_prompt if user_prompt else "No input provided."
 
+        # Add workspace files summary if available
+        if self.workspace_manager:
+            files_summary = self.get_workspace_files_summary()
+            if files_summary and "No files registered yet" not in files_summary:
+                user_prompt += f"\n\n## Workspace Files\n{files_summary}"
+
+        # Add experience log if available
+        if "experience" in state:
+            experience_log = state["experience"]
+            user_prompt += f"\n\n## Experience Log\n{experience_log}"
+
         # Build content blocks starting with the text prompt
         content_blocks = [{"type": "text", "text": user_prompt}]
-
-        # Add file content blocks if specified
-        if self.file_keys:
-            logger.debug(f"[{self.name}] Processing {len(self.file_keys)} file key(s)")
-            for key in self.file_keys:
-                if key in state:
-                    file_path = state[key]
-                    try:
-                        # Determine file type and read accordingly
-                        if file_path.lower().endswith(('.png', '.jpg', '.jpeg', '.gif', '.webp')):
-                            # Handle images with base64 encoding for vision models
-                            with open(file_path, 'rb') as f:
-                                image_data = base64.b64encode(f.read()).decode('utf-8')
-                            ext = file_path.split('.')[-1].lower()
-                            if ext == 'jpg':
-                                ext = 'jpeg'  # Normalize jpg to jpeg for MIME type
-                            content_blocks.append({
-                                "type": "image_url",
-                                "image_url": {
-                                    "url": f"data:image/{ext};base64,{image_data}"
-                                }
-                            })
-                            logger.info(f"[{self.name}] Added image file: {os.path.basename(file_path)} ({ext})")
-                        else:
-                            # Handle text files (CSV, code, logs, etc.)
-                            with open(file_path, 'r', encoding='utf-8') as f:
-                                file_content = f.read()
-                            content_blocks.append({
-                                "type": "text",
-                                "text": f"\n\n--- File: {os.path.basename(file_path)} ---\n{file_content}\n--- End of file ---\n"
-                            })
-                            logger.info(f"[{self.name}] Added text file: {os.path.basename(file_path)} ({len(file_content)} chars)")
-                    except Exception as e:
-                        logger.error(f"[{self.name}] Error reading file {file_path} (key: {key}): {e}")
-                        raise IOError(f"Error reading file {file_path} (key: {key}): {e}")
 
         return {
             "system_prompt": system_prompt_text,
@@ -533,6 +506,7 @@ class SRNode(LLMNode):
           1. Stores the raw output in state[output_key]
           2. If parse_json is True, extracts JSON and stores in state['parsed_json']
           3. If parse_tool_calls is True, extracts tool calls and stores in state['tool_calls']
+          4. For python_interpreter tool, extracts Python code from code blocks
 
         Args:
             output: Raw LLM response text.
@@ -545,6 +519,7 @@ class SRNode(LLMNode):
 
         # Store raw output
         state[self.output_key] = output
+        logger.info(f"[{self.name}] Raw output: {output}")
 
         # Parse JSON if requested
         if self.parse_json:
@@ -557,6 +532,20 @@ class SRNode(LLMNode):
                 if tool_call:
                     logger.info(f"[{self.name}] Successfully extracted tool call from JSON")
                     logger.debug(f"[{self.name}] Extracted tool call keys: {list(tool_call.keys())}")
+
+                    # Special handling for python_interpreter tool
+                    # Extract Python code from code blocks in the response
+                    if tool_call.get("tool_name") == "python_interpreter":
+                        python_code = self._extract_python_code(output)
+                        if python_code:
+                            logger.info(f"[{self.name}] Extracted Python code for python_interpreter")
+                            # Add the code to the tool call arguments
+                            if "args" not in tool_call:
+                                tool_call["args"] = {}
+                            tool_call["args"]["code"] = python_code
+                        else:
+                            logger.warning(f"[{self.name}] python_interpreter tool called but no Python code block found")
+
                     state["tool_call"] = tool_call
                     state["_next_node"] = "tool_executor"
                 else:

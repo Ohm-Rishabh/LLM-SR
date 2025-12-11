@@ -4,13 +4,13 @@ set -e  # Exit on error
 echo "Starting PySR tool execution..." >&2
 
 # Validate required inputs
-if [ -z "$STATE_DATA_FILE" ]; then
-    echo "Error: STATE_DATA_FILE not provided" >&2
+if [ -z "$TOOL_ARG_INPUT_FILE" ]; then
+    echo "Error: TOOL_ARG_INPUT_FILE not provided" >&2
     exit 1
 fi
 
 # Log environment for debugging
-echo "Data file: $STATE_DATA_FILE" >&2
+echo "Input file: $TOOL_ARG_INPUT_FILE" >&2
 echo "Tool arguments:" >&2
 env | grep "^TOOL_ARG_" >&2 || echo "  (no arguments)" >&2
 

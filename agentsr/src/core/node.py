@@ -1,11 +1,14 @@
 from __future__ import annotations
 from abc import ABC, abstractmethod
-from typing import Any, Dict, List, Optional, Callable
+from typing import Any, Dict, List, Optional, Callable, TYPE_CHECKING
 import json
 import re
 import os
 import logging
 from core.consts import ROOT_DIR
+
+if TYPE_CHECKING:
+    from core.workspace import WorkspaceManager
 
 logger = logging.getLogger(__name__)
 
@@ -18,6 +21,7 @@ class Node(ABC):
       - has a unique name in the workflow
       - takes a mutable `state` dict as input
       - returns the (possibly modified) `state` dict
+      - can access workspace_manager for file operations
 
     Convention:
       - Nodes can optionally write `state["_next_node"]` to
@@ -32,6 +36,67 @@ class Node(ABC):
     def __init__(self, name: str, description: str = "") -> None:
         self.name = name
         self.description = description
+        self._workspace_manager: Optional['WorkspaceManager'] = None
+
+    def set_workspace_manager(self, workspace_manager: Optional['WorkspaceManager']) -> None:
+        """
+        Set the workspace manager for this node.
+
+        This is called by the Workflow when the node is added,
+        or when the workflow run starts with workspace enabled.
+
+        Args:
+            workspace_manager: WorkspaceManager instance or None
+        """
+        self._workspace_manager = workspace_manager
+
+    @property
+    def workspace_manager(self) -> Optional['WorkspaceManager']:
+        """
+        Get the workspace manager for file operations.
+
+        Returns:
+            WorkspaceManager instance if workspace is enabled, None otherwise
+        """
+        return self._workspace_manager
+
+    def get_workspace_files_summary(self) -> Optional[str]:
+        """
+        Get a formatted summary of all workspace files with descriptions.
+
+        This is useful for including in LLM prompts to give context about
+        available files.
+
+        Returns:
+            Formatted string with file descriptions, or None if no workspace
+
+        Example:
+            >>> summary = self.get_workspace_files_summary()
+            >>> prompt = f"Available files:\\n{summary}\\n\\nWhat should we analyze next?"
+        """
+        if self._workspace_manager:
+            return self._workspace_manager.get_files_summary()
+        return None
+
+    def list_workspace_files(self, subdir: Optional[str] = None, file_type: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        List files in workspace with metadata.
+
+        Args:
+            subdir: Filter by subdirectory (e.g., "output", "input")
+            file_type: Filter by file type (e.g., "plot", "data")
+
+        Returns:
+            List of file info dictionaries, or empty list if no workspace
+
+        Example:
+            >>> plots = self.list_workspace_files(file_type="plot")
+            >>> for plot in plots:
+            ...     print(f"Available plot: {plot['path']} - {plot['description']}")
+        """
+        if self._workspace_manager:
+            return self._workspace_manager.list_files_with_metadata(subdir, file_type)
+        return []
 
     def _build_input(self, state: Dict[str, Any]) -> Any:
         """
@@ -209,6 +274,14 @@ class LLMNode(Node):
 
         user_prompt = user_prompt if user_prompt else "No input provided."
 
+        # Add workspace files summary if available
+        workspace_files_section = ""
+        if self.workspace_manager:
+            files_summary = self.get_workspace_files_summary()
+            if files_summary and "No files registered yet" not in files_summary:
+                workspace_files_section = f"\n\n# Workspace Files\n{files_summary}"
+                logger.debug(f"[{self.name}] Added workspace files summary to prompt")
+
         # Concatenate system prompt and user prompt with headers
         prompt_parts = []
         if system_prompt_text:
@@ -218,6 +291,10 @@ class LLMNode(Node):
 
         prompt_parts.append("# User Input")
         prompt_parts.append(user_prompt)
+
+        # Add workspace files section if available
+        if workspace_files_section:
+            prompt_parts.append(workspace_files_section)
 
         return "\n".join(prompt_parts)
 
@@ -314,6 +391,29 @@ class LLMNode(Node):
                         return json.loads(text[start_idx:i+1])
                     except json.JSONDecodeError:
                         start_idx = -1
+
+        return None
+
+    def _extract_python_code(self, text: str) -> Optional[str]:
+        """
+        Extract Python code from text.
+
+        Looks for Python code in code blocks (```python ... ``` or ``` ... ```).
+
+        Args:
+            text: Text to parse.
+
+        Returns:
+            Extracted Python code as string, or None if no code block found.
+        """
+        # Try to find Python code in code blocks
+        # Pattern matches ```python or just ``` followed by code
+        python_block_pattern = r"```(?:python)?\s*\n(.*?)\n```"
+        matches = re.findall(python_block_pattern, text, re.DOTALL)
+
+        if matches:
+            # Return the first match (code content without the backticks)
+            return matches[0]
 
         return None
 

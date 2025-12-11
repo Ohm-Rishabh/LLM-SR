@@ -64,8 +64,7 @@ def main():
     sr_node = SRNode(
         name="sr_analyzer",
         system_prompt="sr_analyzer",  # Uses prompts/sr_analyzer.md
-        file_keys=["data_file"],  # State key containing the file path
-        tool_list=["pysr"],  # Available tools - loads tool_specs/pysr.md
+        tool_list=["pysr", "python_interpreter"],  # Available tools - loads tool_specs/pysr.md
         model="gpt-4o-mini",
         temperature=0.7,
         max_tokens=8192,
@@ -130,23 +129,18 @@ def main():
         # If arguments provided, use them as the query
         user_input = " ".join(sys.argv[1:])
     else:
-        # Otherwise, prompt for input
-        print("Enter your message (or 'quit' to exit):")
-        user_input = input("> ").strip()
+        # # Otherwise, prompt for input
+        # print("Enter your message (or 'quit' to exit):")
+        # user_input = input("> ").strip()
 
-        if user_input.lower() in ['quit', 'exit', 'q']:
-            print("Goodbye!")
-            return
-
-    # if not user_input:
-    #     print("Error: No input provided.")
-    #     print("Usage: python main.py <your message>")
-    #     print("   or: python main.py  (for interactive mode)")
-    #     return
+        # if user_input.lower() in ['quit', 'exit', 'q']:
+        #     print("Goodbye!")
+        #     return
+        user_input = ""
 
     print()
     print(f"User: {user_input}")
-    print(f"Data File: {data_file_path}")
+    print(f"Input File: {data_file_path}")
     print()
 
     # Run the workflow
@@ -154,7 +148,7 @@ def main():
         print("Processing...")
         initial_state = {
             "user_query": user_input,
-            "data_file": data_file_path
+            "input_file": data_file_path
         }
         result_state = workflow.run(initial_state)
 
@@ -190,9 +184,9 @@ def main():
 
     except Exception as e:
         print(f"\nError: {e}")
-        print("\nMake sure:")
-        print("1. OPENAI_API_KEY environment variable is set")
-        print("2. The openai package is installed (pip install openai)")
+        # print("\nMake sure:")
+        # print("1. OPENAI_API_KEY environment variable is set")
+        # print("2. The openai package is installed (pip install openai)")
         sys.exit(1)
 
 
