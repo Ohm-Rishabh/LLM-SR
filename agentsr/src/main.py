@@ -67,7 +67,7 @@ def main():
         tool_list=["pysr", "python_interpreter"],  # Available tools - loads tool_specs/pysr.md
         model="gpt-4o-mini",
         temperature=0.7,
-        max_tokens=8192,
+        max_tokens=16384,
         parse_json=True,  # Parse JSON for tool call extraction
         description="An SR node that analyzes data files and prepares symbolic regression tool calls"
     )

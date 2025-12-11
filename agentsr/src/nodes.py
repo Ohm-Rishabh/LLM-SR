@@ -48,7 +48,7 @@ class ToolSwitchNode(Node):
             timeout: Maximum execution time in seconds (None for no timeout).
         """
         super().__init__(name=name, description=description)
-        self.tools_dir = tools_dir or os.path.join(ROOT_DIR, "tools")
+        self.tools_dir = tools_dir or os.path.join(SRC_DIR, "tools")
         self.timeout = timeout
 
     def run(self, state: Dict[str, Any]) -> Dict[str, Any]:

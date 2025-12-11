@@ -10,7 +10,7 @@ import os
 from pathlib import Path
 from typing import Dict, Any, Optional
 
-_ROOT_DIR = Path(__file__).resolve().parent.parent.parent
+_ROOT_DIR = Path(__file__).resolve().parent.parent.parent.parent
 
 
 class ResultManager:
