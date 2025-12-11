@@ -3,6 +3,8 @@ Result Manager - Handles saving and loading JSON results for tools.
 
 This module provides utilities to write tool results to temporary files
 and read them back, ensuring clean separation of results from stdout/stderr.
+
+Tools should write results to workspace_scratch directory when available.
 """
 
 import json
@@ -37,18 +39,30 @@ class ResultManager:
         """
         Get the path for the result file.
 
+        Priority:
+        1. Use WORKSPACE_SCRATCH environment variable if set
+        2. Use specified output_dir if provided
+        3. Fall back to project root directory
+
         Args:
             tool_name: Name of the tool (used in filename)
 
         Returns:
             Path to the result file
         """
-        if self.output_dir:
+        workspace_scratch = os.environ.get('WORKSPACE_SCRATCH')
+
+        if workspace_scratch:
+            # Use workspace scratch directory (highest priority)
+            scratch_dir = Path(workspace_scratch)
+            scratch_dir.mkdir(parents=True, exist_ok=True)
+            self.result_file = scratch_dir / self.DEFAULT_FILENAME
+        elif self.output_dir:
             # Use specified directory
             self.output_dir.mkdir(parents=True, exist_ok=True)
             self.result_file = self.output_dir / f"{tool_name}_{self.DEFAULT_FILENAME}"
         else:
-            # Use current working directory
+            # Fall back to project root (for backward compatibility)
             self.result_file = _ROOT_DIR / self.DEFAULT_FILENAME
 
         return self.result_file

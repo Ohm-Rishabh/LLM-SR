@@ -159,8 +159,13 @@ class ToolSwitchNode(Node):
             logger.info(f"[{self.name}] Tool completed with exit code: {exit_code}")
 
             # Construct expected result file path
-            # The tool writes to ROOT_DIR/result.json by default
-            result_file_path = os.path.join(ROOT_DIR, "result.json")
+            # The tool writes to workspace_scratch/result.json if workspace is enabled,
+            # otherwise falls back to ROOT_DIR/result.json
+            if "_workspace_root" in state:
+                workspace_scratch = os.path.join(state["_workspace_root"], "scratch")
+                result_file_path = os.path.join(workspace_scratch, "result.json")
+            else:
+                result_file_path = os.path.join(ROOT_DIR, "result.json")
 
             if not os.path.exists(result_file_path):
                 logger.error(f"[{self.name}] Result file not found at: {result_file_path}")
