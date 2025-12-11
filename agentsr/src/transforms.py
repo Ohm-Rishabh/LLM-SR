@@ -15,7 +15,8 @@ def add_tool_results_to_experience(state: Dict[str, any]) -> Dict[str, any]:
     if tool_result:
         experience.append({
             "tool_name": tool_result.pop("tool_name", "unknown_tool"),
-            "data": tool_result
+            "args": state.get("tool_call", {}).get("args", {}),
+            "tool_result": tool_result
         })
         state["experience"] = experience
 

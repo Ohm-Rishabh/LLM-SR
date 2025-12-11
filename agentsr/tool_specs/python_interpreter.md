@@ -27,6 +27,11 @@
 }
 ```
 
+**IMPORTANT**: The `summary` field must contain **only JSON-serializable, human-readable values** (strings, numbers, booleans, lists, dicts). **Do NOT include** pandas DataFrames, NumPy arrays, or other complex objects directly in the summary. Instead:
+- Extract scalar values from NumPy arrays (e.g., `float(array.mean())`)
+- Describe results in plain text with key statistics
+- Save complex objects to files and reference the file paths in `saved_files`
+
 **Pre-imported Libraries and Environment Variables**
 
 The following libraries are pre-imported and ready to use:
@@ -61,6 +66,19 @@ df = pd.read_csv(data_file)
 
 # Perform analysis
 # ...
+
+# write results
+summary = [
+  "The dataset is clean without any missing values",
+  f"The correlation between variables A and B is {corr}",
+  # ...
+]
+result = {
+  "summary": summary,
+  "saved_files": {
+    # ...
+  }
+}
 ```
 
 **Important**: Unlike other tools, you must not wrap the Python code in the JSON object as one of the arguments. You should create a separate Python code block in your response as above. Make sure you provide **both the JSON object specifying this tool and the Python code**.

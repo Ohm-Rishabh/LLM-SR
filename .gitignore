@@ -3,3 +3,6 @@ LLM_INTEGRATION_REPORT.md
 logs/
 __pycache__/
 outputs/
+
+# Workspace directories (temporary files for workflow runs)
+agentsr/workspaces/

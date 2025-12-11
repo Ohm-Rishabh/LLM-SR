@@ -410,14 +410,15 @@ class SRNode(LLMNode):
                     parts.append(f"{key}: {state[key]}")
             user_prompt = "\n".join(parts)
         else:
-            # Use all non-internal keys (excluding file keys to avoid duplication)
-            parts = []
-            for key, value in state.items():
-                if not key.startswith("_"):
-                    parts.append(f"{key}: {value}")
-            user_prompt = "\n".join(parts)
+            # # Use all non-internal keys (excluding file keys to avoid duplication)
+            # parts = []
+            # for key, value in state.items():
+            #     if not key.startswith("_"):
+            #         parts.append(f"{key}: {value}")
+            # user_prompt = "\n".join(parts)
+            user_prompt = ""
 
-        user_prompt = user_prompt if user_prompt else "No input provided."
+        # user_prompt = user_prompt if user_prompt else "No input provided."
 
         # Add workspace files summary if available
         if self.workspace_manager:

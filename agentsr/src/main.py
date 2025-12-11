@@ -150,7 +150,7 @@ def main():
             "user_query": user_input,
             "input_file": data_file_path
         }
-        result_state = workflow.run(initial_state)
+        result_state = workflow.run(initial_state, cleanup_old_workspaces=True)
 
         # Display the response
         print("-" * 60)

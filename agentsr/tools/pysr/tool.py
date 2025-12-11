@@ -6,7 +6,10 @@ This script reads configuration from environment variables set by ToolSwitchNode
 and executes symbolic regression using PySRRegressor.
 
 Environment Variables:
-    STATE_DATA_FILE: Path to input CSV file
+    WORKSPACE_INPUT: Path to workspace input directory
+    WORKSPACE_OUTPUT: Path to workspace output directory
+    WORKSPACE_LOGS: Path to workspace logs directory
+    WORKSPACE_SCRATCH: Path to workspace scratch directory
     TOOL_ARG_*: Tool arguments from the LLM's tool_call JSON
 """
 
