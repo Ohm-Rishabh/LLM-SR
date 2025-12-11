@@ -1,21 +1,33 @@
 #!/usr/bin/env python3
 """
-Minimal example of a workflow with a single SRNode.
+Symbolic Regression Workflow with LLM-SRBench Dataset Integration.
 
 This script demonstrates:
+- Loading datasets from LLM-SRBench by name
 - Creating a simple workflow with one SRNode
-- Passing a CSV data file to the LLM
-- Accepting user input from command line
+- Passing dataset metadata and CSV data to the LLM
 - Running the workflow and displaying the LLM response
+
+Usage:
+    python main.py <dataset_name> [additional_instructions]
+
+Examples:
+    python main.py I.10.7_1_0
+    python main.py BPG0 "Use simple operators only"
 """
 
 from __future__ import annotations
 import sys
 import logging
+import argparse
+from pathlib import Path
 from nodes import SRNode, ToolSwitchNode
 from core.workflow import Workflow
 from core.node import LoopController, TransformNode, LLMNode
 from transforms import add_tool_results_to_experience
+from datasets.llmsrbench import LLMSRBenchDataset
+
+logger = logging.getLogger(__name__)
 
 
 # Configure logging
@@ -44,7 +56,7 @@ def setup_logging(level=logging.INFO):
 
 
 def main():
-    """Run a simple SR workflow with file support."""
+    """Run a simple SR workflow with LLM-SRBench dataset."""
     # Setup logging (can be set to logging.DEBUG for more verbose output)
     # Or use environment variable: AGENTSR_LOG_LEVEL=DEBUG
     import os
@@ -52,21 +64,81 @@ def main():
     log_level = getattr(logging, log_level_name, logging.INFO)
     setup_logging(level=log_level)
 
-    print("=" * 60)
-    print("Symbolic Regression Workflow Example")
-    print("=" * 60)
-    print()
+    # Parse command line arguments
+    parser = argparse.ArgumentParser(
+        description='Run symbolic regression on LLM-SRBench datasets',
+    )
+    parser.add_argument('-D', '--dataset_name', type=str, help='Dataset name (e.g., I.10.7_1_0, BPG0)')
+    parser.add_argument('-I', '--instructions', type=str, default='', help='Additional instructions for the agent (optional)')
+    parser.add_argument('-T', '--temperature', type=float, default=0.7, help='Temperature for LLM sampling (default: 0.7)')
 
-    # Path to the data file
-    data_file_path = "/home/ubuntu/LLM-SR/llmsr/data/test.csv"
+    args = parser.parse_args()
+
+    # Load dataset
+    print(f"Loading dataset: {args.dataset_name}")
+    try:
+        dataset_manager = LLMSRBenchDataset()
+        csv_path, metadata = dataset_manager.get_dataset(args.dataset_name, split="train")
+        logger.info(f"Dataset loaded: {csv_path}")
+    except FileNotFoundError as e:
+        print(f"Error: {e}")
+        print("\nTo extract datasets, run:")
+        print("  cd src && python datasets/llmsrbench.py")
+        sys.exit(1)
+    except Exception as e:
+        print(f"Error loading dataset: {e}")
+        sys.exit(1)
+
+    # Build user query with dataset metadata
+    user_query_parts = []
+
+    # Parse symbols and identify target variable
+    symbols = metadata.get('symbols', [])
+    symbol_descs = metadata.get('symbol_descs', [])
+    symbol_properties = metadata.get('symbol_properties', [])
+
+    # Identify target variable (marked with 'O' in symbol_properties)
+    target_desc = None
+
+    if len(symbols) > 0 and len(symbol_properties) > 0:
+        for sym, prop, desc in zip(symbols, symbol_properties, symbol_descs):
+            if prop == 'O':
+                target_desc = f"{sym} ({desc})"
+                break
+
+    # Build variable description sentence
+    if len(symbols) > 0 and len(symbol_descs) > 0:
+        # List all variables in order
+        var_list = [f"{sym} ({desc})" for sym, desc in zip(symbols, symbol_descs)]
+
+        # Build natural language description
+        if len(var_list) > 1:
+            all_vars_str = ", ".join(var_list[:-1]) + f", and {var_list[-1]}"
+        else:
+            all_vars_str = var_list[0]
+
+        var_sentence = f"The dataset contains the following variables: {all_vars_str}."
+
+        # Add target specification if available
+        if target_desc:
+            var_sentence += f" The goal is to find a symbolic expression for {target_desc} in terms of the other variables."
+
+        user_query_parts.append(var_sentence)
+
+    # Add user instructions if provided
+    if args.instructions:
+        user_query_parts.append(f"\nAdditional instructions: {args.instructions}")
+
+    user_query = "\n\n".join(user_query_parts)
 
     # Create an SR node with file support
     sr_node = SRNode(
         name="sr_analyzer",
         system_prompt="sr_analyzer",  # Uses prompts/sr_analyzer.md
         tool_list=["pysr", "python_interpreter"],  # Available tools - loads tool_specs/pysr.md
+        input_keys=["user_query"],
         model="gpt-4o-mini",
-        temperature=0.7,
+        temperature=args.temperature,
         max_tokens=16384,
         parse_json=True,  # Parse JSON for tool call extraction
         description="An SR node that analyzes data files and prepares symbolic regression tool calls"
@@ -124,31 +196,22 @@ def main():
     workflow.add_edge(loop_controller, sr_node)
     workflow.add_edge(loop_controller, summary_node)
 
-    # Get user input from command line
-    if len(sys.argv) > 1:
-        # If arguments provided, use them as the query
-        user_input = " ".join(sys.argv[1:])
-    else:
-        # # Otherwise, prompt for input
-        # print("Enter your message (or 'quit' to exit):")
-        # user_input = input("> ").strip()
-
-        # if user_input.lower() in ['quit', 'exit', 'q']:
-        #     print("Goodbye!")
-        #     return
-        user_input = ""
-
+    print("-" * 60)
+    print("Task Description:")
+    print("-" * 60)
+    print(user_query)
     print()
-    print(f"User: {user_input}")
-    print(f"Input File: {data_file_path}")
+    print(f"Input File: {csv_path}")
     print()
 
     # Run the workflow
     try:
         print("Processing...")
         initial_state = {
-            "user_query": user_input,
-            "input_file": data_file_path
+            "user_query": user_query,
+            "input_file": str(csv_path),
+            "dataset_name": args.dataset_name,
+            "dataset_metadata": metadata
         }
         result_state = workflow.run(initial_state, cleanup_old_workspaces=True)
 
@@ -166,15 +229,6 @@ def main():
             print("-" * 60)
             import json
             print(json.dumps(result_state["tool_call"], indent=2))
-            print()
-
-        # Display tool execution results if present
-        if "tool_result" in result_state:
-            print("-" * 60)
-            print("Tool Execution Result:")
-            print("-" * 60)
-            import json
-            print(json.dumps(result_state["tool_result"], indent=2))
             print()
 
         # Display workflow metadata
