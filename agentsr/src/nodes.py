@@ -368,12 +368,6 @@ class SRNode(LLMNode):
         system_prompt_text = ""
         if self.system_prompt:
             prompt_file = os.path.join(ROOT_DIR, "prompts", f"{self.system_prompt}.md")
-            # # Try relative to current working directory first
-            # if not os.path.exists(prompt_file):
-            #     # Try relative to the script's directory
-            #     script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            #     prompt_file = os.path.join(script_dir, "prompts", f"{self.system_prompt}.md")
-
             try:
                 with open(prompt_file, 'r', encoding='utf-8') as f:
                     system_prompt_text = f.read().strip()
@@ -415,15 +409,7 @@ class SRNode(LLMNode):
                     parts.append(f"{key}: {state[key]}")
             user_prompt = "\n".join(parts)
         else:
-            # # Use all non-internal keys (excluding file keys to avoid duplication)
-            # parts = []
-            # for key, value in state.items():
-            #     if not key.startswith("_"):
-            #         parts.append(f"{key}: {value}")
-            # user_prompt = "\n".join(parts)
-            user_prompt = ""
-
-        # user_prompt = user_prompt if user_prompt else "No input provided."
+            user_prompt = "No user input provided."
 
         # Add workspace files summary if available
         if self.workspace_manager:

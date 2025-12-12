@@ -173,7 +173,7 @@ class WorkspaceManager:
 
         # Register file with metadata
         if description is None:
-            description = f"Input data file copied from {src_path.name}"
+            description = f"Input data file"
 
         self.register_file(
             dst_path,

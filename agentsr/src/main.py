@@ -20,7 +20,6 @@ from __future__ import annotations
 import sys
 import logging
 import argparse
-from pathlib import Path
 from nodes import SRNode, ToolSwitchNode
 from core.workflow import Workflow
 from core.node import LoopController, TransformNode, LLMNode
@@ -222,15 +221,6 @@ def main():
         print(result_state.get("llm_response", "No response generated."))
         print()
 
-        # Display extracted tool call if present
-        if "tool_call" in result_state:
-            print("-" * 60)
-            print("Extracted Tool Call:")
-            print("-" * 60)
-            import json
-            print(json.dumps(result_state["tool_call"], indent=2))
-            print()
-
         # Display workflow metadata
         print("=" * 60)
         print(f"Workflow completed. Visited nodes: {result_state.get('_visited_nodes', [])}")
@@ -238,9 +228,6 @@ def main():
 
     except Exception as e:
         print(f"\nError: {e}")
-        # print("\nMake sure:")
-        # print("1. OPENAI_API_KEY environment variable is set")
-        # print("2. The openai package is installed (pip install openai)")
         sys.exit(1)
 
 
