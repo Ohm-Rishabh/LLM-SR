@@ -230,7 +230,7 @@ def main():
                 "tool_name": "python_interpreter",
                 "result_type": "code_execution",
                 "status": "success",
-                "code": code,
+                # "code": code,
                 "result": code_result,  # This should be a dict with 'summary' and 'saved_files'
             }
         else:

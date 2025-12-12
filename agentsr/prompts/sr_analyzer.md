@@ -29,7 +29,7 @@ You have access to a workspace directory where the input data file is stored and
       - Look for patterns, trends, or obvious relationships
    - If there are useful constraints or inductive biases from past tool calls, incorporate them into future symbolic regression calls.
    - If there are existing results from any symbolic regression algorithm, examine the discovered equations and their data fitting errors. Learn the lessons and failure modes before making new tool calls.
-   - If the existing results are good enough (MAPE < 0.1%, for example), do not return any new tool call. Instead, return the single best equation that describes the dataset.
+   - **STOPPING CRITERIA - CRITICAL**: If the existing results have achieved **MAPE < 0.1%** (Mean Absolute Percentage Error less than 0.1%), you MUST stop and return the final result. Do NOT make any new tool calls. Instead, return the single best equation that describes the dataset with the lowest error. This is your PRIMARY SUCCESS CONDITION.
 
 3. **Select appropriate tool**
    - If the current information about the dataset is sufficient for trying one of the symbolic regression algorithms, call a tool for symbolic regression.
@@ -73,3 +73,4 @@ or, in case you decide no more tool calls are needed:
 - The JSON object specifying the tool call must be included at the end, valid and parseable
 - Choose tools and their parameters based on the specific characteristics of the data
 - Review the available tools and their specifications below before making your selection
+- **YOUR PRIMARY GOAL**: Achieve **MAPE < 0.1%** (Mean Absolute Percentage Error less than 0.1%)

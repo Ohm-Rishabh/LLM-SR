@@ -1,6 +1,6 @@
 #### Description
 
-**pysr** is a high-performance symbolic regression tool that uses evolutionary algorithms to discover mathematical equations that fit your data.
+**pysr** uses evolutionary algorithms to discover mathematical equations that fit your data.
 
 **Best For:**
 - Complex non-linear relationships
@@ -43,8 +43,8 @@
   - Number of iterations to run the evolutionary search
   - Each iteration performs multiple generations of evolution
   - Higher values → more thorough search, longer runtime
-  - **Default:** `40`
-  - **Typical range:** `5-100` (5 for quick tests, 40+ for production)
+  - **Default:** `10`
+  - **Typical range:** `5-40` (5 for quick tests, 20+ for production)
 
 - **`populations`** (int)
   - Number of independent populations to evolve in parallel
@@ -58,12 +58,6 @@
   - Larger populations → better diversity, slower per-iteration
   - **Default:** `33`
   - **Typical range:** `20-100`
-
-- **`ncycles_per_iteration`** (int)
-  - Number of evolutionary cycles between migrations
-  - Controls how often populations exchange information
-  - **Default:** `550`
-  - **Typical range:** `100-1000`
 
 ##### Complexity Control
 
@@ -82,47 +76,7 @@
   - **Default:** `None`
   - **Typical range:** `3-10` when used
 
-##### Performance and Parallelism
-
-- **`procs`** (int or None)
-  - Number of processes to use for parallelization
-  - `None` uses all available CPU cores
-  - Set to `0` to disable parallelism
-  - **Default:** `cpu_count()`
-
-- **`multithreading`** (bool)
-  - Use multithreading within Julia instead of multiprocessing
-  - Can be faster for small populations
-  - **Default:** `True`
-
-- **`timeout_in_seconds`** (float or None)
-  - Maximum time (in seconds) to run the search
-  - Search stops early if timeout is reached
-  - Useful for enforcing time budgets
-  - **Default:** `None` (no timeout)
-
-##### Feature Selection
-
-- **`select_k_features`** (int or None)
-  - Pre-select k most important features using random forest
-  - Reduces dimensionality before symbolic regression
-  - `None` means use all features
-  - **Default:** `None`
-  - **Use when:** You have many features (10+) and suspect some are irrelevant
-
-##### Optimization and Refinement
-
-- **`warm_start`** (bool)
-  - Continue search from previous `.fit()` call
-  - Useful for incremental searches or parameter tuning
-  - **Default:** `False`
-
-##### Loss and Constraints
-
-- **`loss`** (str)
-  - Loss function to optimize
-  - Options: `"L2DistLoss()"` (MSE), `"L1DistLoss()` (MAE), custom Julia expressions
-  - **Default:** `"L2DistLoss()"` (mean squared error)
+##### Constraints
 
 - **`constraints`** (dict or None)
   - Complexity constraints for specific operators
@@ -159,7 +113,7 @@
   "args": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": [],
-    "niterations": 20,
+    "niterations": 10,
     "populations": 15,
     "population_size": 33,
     "maxsize": 15
@@ -174,7 +128,7 @@
   "args": {
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": ["sin", "cos", "exp", "log"],
-    "niterations": 40,
+    "niterations": 20,
     "populations": 20,
     "population_size": 50,
     "maxsize": 20

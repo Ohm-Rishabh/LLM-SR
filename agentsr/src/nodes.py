@@ -186,7 +186,7 @@ class ToolSwitchNode(Node):
                 # Add metadata
                 result_data["tool_name"] = tool_name
                 result_data["exit_code"] = exit_code
-                result_data["stderr"] = stderr  # Keep stderr for logs
+                # result_data["stderr"] = stderr  # Keep stderr for logs
 
                 logger.info(f"[{self.name}] Successfully loaded result from file")
 
@@ -215,7 +215,7 @@ class ToolSwitchNode(Node):
                     "tool_name": tool_name,
                     "error": f"Failed to read result file: {str(e)}",
                     "exit_code": exit_code,
-                    "stderr": stderr,
+                    # "stderr": stderr,
                 }
 
         except subprocess.TimeoutExpired as e:
@@ -224,7 +224,7 @@ class ToolSwitchNode(Node):
                 "status": "error",
                 "tool_name": tool_name,
                 "error": f"Tool execution timeout after {self.timeout} seconds",
-                "stderr": e.stderr if e.stderr else "",
+                # "stderr": e.stderr if e.stderr else "",
             }
 
         except Exception as e:
@@ -549,7 +549,19 @@ class SRNode(LLMNode):
                     else:
                         logger.warning(f"[{self.name}] No tool_call or final_result found in extracted JSON")
             else:
-                logger.warning(f"[{self.name}] Failed to extract JSON from response")
+                # patch - look for Python code, as the model might call python_interpreter without JSON
+                python_code = self._extract_python_code(output)
+                if python_code:
+                    logger.info(f"[{self.name}] Extracted Python code outside JSON, assuming python_interpreter tool call")
+                    state["tool_call"] = {
+                        "tool_name": "python_interpreter",
+                        "args": {
+                            "code": python_code
+                        }
+                    }
+                    state["_next_node"] = "tool_executor"
+                else:
+                    logger.warning(f"[{self.name}] Failed to extract JSON from response")
 
         return state
 

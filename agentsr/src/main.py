@@ -174,7 +174,6 @@ def main():
         name="summary",
         system_prompt="summary",
         input_keys=["experience"],
-        output_key="summary",
         model="gpt-4o-mini",
         parse_json=True,
     )
