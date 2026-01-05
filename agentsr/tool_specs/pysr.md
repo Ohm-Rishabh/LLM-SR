@@ -31,7 +31,6 @@
 - **`unary_operators`** (list of strings)
   - Unary operators (single input) to include in search
   - Common options: `["sin", "cos", "exp", "log", "sqrt", "abs"]`
-  - Advanced: `"tanh"`, `"sinh"`, `"cosh"`, `"erf"`, `"gamma"`
   - Custom: `"square(x) = x^2"`, `"cube(x) = x^3"`
   - **Default:** `[]` (no unary operators)
 
@@ -45,19 +44,6 @@
   - Higher values → more thorough search, longer runtime
   - **Default:** `10`
   - **Typical range:** `5-40` (5 for quick tests, 20+ for production)
-
-- **`populations`** (int)
-  - Number of independent populations to evolve in parallel
-  - Populations periodically exchange best equations (migration)
-  - More populations → better exploration but more computation
-  - **Default:** `15`
-  - **Typical range:** `10-30`
-
-- **`population_size`** (int)
-  - Number of equations in each population
-  - Larger populations → better diversity, slower per-iteration
-  - **Default:** `33`
-  - **Typical range:** `20-100`
 
 ##### Complexity Control
 
@@ -114,8 +100,6 @@
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": [],
     "niterations": 10,
-    "populations": 15,
-    "population_size": 33,
     "maxsize": 15
   }
 }
@@ -129,8 +113,6 @@
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": ["sin", "cos", "exp", "log"],
     "niterations": 20,
-    "populations": 20,
-    "population_size": 50,
     "maxsize": 20
   }
 }
@@ -148,16 +130,11 @@
    - Include more sophisticated operators (trigonometric, exponential)
    - Higher `niterations` for thorough search
 
-3. **For time-constrained searches:**
-   - Set `timeout_in_seconds`
-   - Reduce `niterations` and `populations`
-   - Start with simpler operator sets
-
-4. **For periodic/oscillatory data:**
+3. **For periodic/oscillatory data:**
    - Include `["sin", "cos"]` in `unary_operators`
    - Consider adding `"tan"` if appropriate
    - May need higher `maxsize` for complex waveforms
 
-5. **For exponential growth/decay:**
+4. **For exponential growth/decay:**
    - Include `["exp", "log"]` in `unary_operators`
    - Watch for numerical instability with large exponents
