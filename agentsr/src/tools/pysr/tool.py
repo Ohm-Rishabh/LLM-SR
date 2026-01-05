@@ -18,13 +18,16 @@ import sys
 import json
 import pandas as pd
 import numpy as np
-from pysr import PySRRegressor
+from pysr import PySRRegressor, TemplateExpressionSpec
 import warnings
 from pathlib import Path
 
 # Add parent directory to path to import common utilities
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from common.result_manager import write_result
+
+# Import template utilities
+from template_utils import combine_template_equation
 
 # Suppress warnings for cleaner output
 warnings.filterwarnings('ignore')
@@ -136,6 +139,38 @@ def build_pysr_kwargs():
     kwargs['binary_operators'] = binary_operators
     kwargs['unary_operators'] = unary_operators
 
+    # Template Expression Specification (HIGHLY RECOMMENDED)
+    expression_spec_dict = parse_env_arg('expression_spec', None, dict)
+    if expression_spec_dict is not None:
+        try:
+            # Validate required fields
+            if 'expressions' not in expression_spec_dict:
+                raise ValueError("expression_spec must contain 'expressions' field")
+            if 'variable_names' not in expression_spec_dict:
+                raise ValueError("expression_spec must contain 'variable_names' field")
+            if 'combine' not in expression_spec_dict:
+                raise ValueError("expression_spec must contain 'combine' field")
+
+            # Create TemplateExpressionSpec object
+            template = TemplateExpressionSpec(
+                expressions=expression_spec_dict['expressions'],
+                variable_names=expression_spec_dict['variable_names'],
+                combine=expression_spec_dict['combine']
+            )
+            kwargs['expression_spec'] = template
+
+            print("\n" + "="*60, file=sys.stderr)
+            print("Using Template Expression Specification:", file=sys.stderr)
+            print(f"  Sub-expressions: {expression_spec_dict['expressions']}", file=sys.stderr)
+            print(f"  Variables: {expression_spec_dict['variable_names']}", file=sys.stderr)
+            print(f"  Combine formula: {expression_spec_dict['combine']}", file=sys.stderr)
+            print("  This will dramatically reduce search space and improve results!", file=sys.stderr)
+            print("="*60 + "\n", file=sys.stderr)
+
+        except Exception as e:
+            print(f"Warning: Failed to parse expression_spec: {e}", file=sys.stderr)
+            print("Falling back to unrestricted search (slower).", file=sys.stderr)
+
     # Search configuration
     kwargs['niterations'] = parse_env_arg('niterations', 40, int)
     kwargs['populations'] = parse_env_arg('populations', 15, int)
@@ -210,6 +245,9 @@ def main():
         # Build PySR configuration
         pysr_kwargs = build_pysr_kwargs()
 
+        # Check if we're using a template for later equation combining
+        expression_spec_dict = parse_env_arg('expression_spec', None, dict)
+
         print("\n" + "="*60, file=sys.stderr)
         print("PySR Configuration:", file=sys.stderr)
         print("="*60, file=sys.stderr)
@@ -241,45 +279,89 @@ def main():
         best_predictions = model.predict(X, index=best_idx)
         best_mape = calculate_mape(y, best_predictions)
 
-        print(f"\nBest equation (index {best_idx}):", file=sys.stderr)
-        print(f"  Complexity: {best_equation['complexity']}", file=sys.stderr)
-        print(f"  Loss: {best_equation['loss']}", file=sys.stderr)
-        print(f"  Score: {best_equation['score']}", file=sys.stderr)
-        print(f"  MAPE: {best_mape:.4f}%", file=sys.stderr)
-        print(f"  Equation: {best_equation['equation']}", file=sys.stderr)
+        # Combine template equations if using expression_spec
+        best_equation_str = str(best_equation['equation'])
+        if expression_spec_dict:
+            combined_best = combine_template_equation(best_equation_str, expression_spec_dict, feature_names)
+            print(f"\nBest equation (index {best_idx}):", file=sys.stderr)
+            print(f"  Complexity: {best_equation['complexity']}", file=sys.stderr)
+            print(f"  Loss: {best_equation['loss']}", file=sys.stderr)
+            print(f"  Score: {best_equation['score']}", file=sys.stderr)
+            print(f"  MAPE: {best_mape:.4f}%", file=sys.stderr)
+            print(f"  Sub-expressions: {best_equation_str}", file=sys.stderr)
+            print(f"  Combined equation: {combined_best}", file=sys.stderr)
+        else:
+            combined_best = best_equation_str
+            print(f"\nBest equation (index {best_idx}):", file=sys.stderr)
+            print(f"  Complexity: {best_equation['complexity']}", file=sys.stderr)
+            print(f"  Loss: {best_equation['loss']}", file=sys.stderr)
+            print(f"  Score: {best_equation['score']}", file=sys.stderr)
+            print(f"  MAPE: {best_mape:.4f}%", file=sys.stderr)
+            print(f"  Equation: {best_equation_str}", file=sys.stderr)
 
         # Calculate MAPE for all equations
         all_equations = []
         for idx, row in equations.iterrows():
             predictions = model.predict(X, index=idx)
             mape = calculate_mape(y, predictions)
+
+            # Get both raw and combined equation strings
+            raw_expr = str(row['equation'])
+            if expression_spec_dict:
+                combined_expr = combine_template_equation(raw_expr, expression_spec_dict, feature_names)
+            else:
+                combined_expr = raw_expr
+
             all_equations.append({
-                "expression": str(row['equation']),
+                "expression": combined_expr,
+                "raw_expression": raw_expr if expression_spec_dict else None,
                 "complexity": int(row['complexity']),
                 "loss": float(f"{row['loss']:.3f}"),
                 "score": float(f"{row['score']:.3f}"),
                 "mape": float(mape),
             })
 
+        # Prepare configuration for serialization
+        serializable_config = {}
+        for k, v in pysr_kwargs.items():
+            if k == 'extra_sympy_mappings':
+                # Skip non-serializable items
+                continue
+            elif k == 'expression_spec':
+                # Convert TemplateExpressionSpec back to dict for JSON serialization
+                if isinstance(v, TemplateExpressionSpec):
+                    serializable_config[k] = {
+                        'expressions': v.expressions,
+                        'variable_names': v.variable_names,
+                        'combine': v.combine
+                    }
+                else:
+                    serializable_config[k] = v
+            else:
+                serializable_config[k] = v
+
         # Prepare results for output
+        best_equation_result = {
+            "expression": combined_best,
+            "complexity": int(best_equation['complexity']),
+            "loss": float(f"{best_equation['loss']:.3f}"),
+            "score": float(f"{best_equation['score']:.3f}"),
+            "mape": float(f"{best_mape:.3f}"),
+        }
+
+        # Add raw sub-expressions if using template
+        if expression_spec_dict:
+            best_equation_result["raw_expression"] = best_equation_str
+
         results = {
             "tool_name": "pysr",
             "result_type": "equations",
             "status": "success",
-            "best_equation": {
-                "expression": str(best_equation['equation']),
-                "complexity": int(best_equation['complexity']),
-                "loss": float(f"{best_equation['loss']:.3f}"),
-                "score": float(f"{best_equation['score']:.3f}"),
-                "mape": float(f"{best_mape:.3f}"),
-            },
+            "best_equation": best_equation_result,
             "all_equations": all_equations,
             "feature_names": feature_names,
             "target_name": target_name,
-            "configuration": {
-                k: v for k, v in pysr_kwargs.items()
-                if k not in ['extra_sympy_mappings']  # Exclude non-serializable items
-            }
+            "configuration": serializable_config
         }
 
         # Write results to file using common utility

@@ -70,6 +70,7 @@ def main():
     parser.add_argument('-D', '--dataset_name', type=str, help='Dataset name (e.g., I.10.7_1_0, BPG0)')
     parser.add_argument('-I', '--instructions', type=str, default='', help='Additional instructions for the agent (optional)')
     parser.add_argument('-T', '--temperature', type=float, default=0.7, help='Temperature for LLM sampling (default: 0.7)')
+    parser.add_argument('-M', '--model', default="gpt-4o-mini", help="GPT model to use")
 
     args = parser.parse_args()
 
@@ -136,7 +137,7 @@ def main():
         system_prompt="sr_analyzer",  # Uses prompts/sr_analyzer.md
         tool_list=["pysr", "python_interpreter"],  # Available tools - loads tool_specs/pysr.md
         input_keys=["user_query"],
-        model="gpt-4o-mini",
+        model=args.model,
         temperature=args.temperature,
         max_tokens=16384,
         parse_json=True,  # Parse JSON for tool call extraction

@@ -470,12 +470,20 @@ class SRNode(LLMNode):
         logger.debug(f"[{self.name}] Message count: {len(messages)}, content blocks: {len(prompt_data['user_content'])}")
 
         # Call OpenAI Chat Completions API
-        response = client.chat.completions.create(
-            model=self.model,
-            messages=messages,
-            temperature=self.temperature,
-            max_tokens=self.max_tokens
-        )
+        if self.model == "gpt-5.1":
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_completion_tokens=self.max_tokens
+            )
+        else:
+            response = client.chat.completions.create(
+                model=self.model,
+                messages=messages,
+                temperature=self.temperature,
+                max_tokens=self.max_tokens
+            )
 
         logger.info(f"[{self.name}] Received response from OpenAI Chat Completions API")
 
