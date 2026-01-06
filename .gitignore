@@ -4,6 +4,7 @@ logs/
 __pycache__/
 outputs/
 llm-srbench/
+evaluation_results/
 
 # Workspace directories (temporary files for workflow runs)
 agentsr/workspaces/

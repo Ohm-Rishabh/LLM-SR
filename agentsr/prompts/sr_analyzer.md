@@ -63,7 +63,7 @@ or, in case you decide no more tool calls are needed:
 
 ```json
 {
-  "final_result": "discovered equation"
+  "final_result": "the RHS of the discovered equation"
 }
 ```
 

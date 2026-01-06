@@ -175,6 +175,7 @@ class LLMNode(Node):
         input_keys: Optional[List[str]] = None,
         file_keys: Optional[List[str]] = None,
         output_key: str = "llm_response",
+        additional_output_keys: Optional[List[str]] = None,
         model: str = "gpt-4.1-mini",
         temperature: float = 0.7,
         max_tokens: int = 8192,
@@ -203,6 +204,7 @@ class LLMNode(Node):
         self.input_keys = input_keys
         self.file_keys = file_keys or []
         self.output_key = output_key
+        self.additional_output_keys = additional_output_keys
         self.model = model
         self.temperature = temperature
         self.max_tokens = max_tokens
@@ -298,28 +300,6 @@ class LLMNode(Node):
 
         return "\n".join(prompt_parts)
 
-        # # Read data files if specified
-        # files = []
-        # if self.file_keys:
-        #     for key in self.file_keys:
-        #         if key in state:
-        #             file_path = state[key]
-        #             try:
-        #                 with open(file_path, 'r', encoding='utf-8') as f:
-        #                     file_content = f.read()
-        #                 files.append({
-        #                     'name': os.path.basename(file_path),
-        #                     'path': file_path,
-        #                     'content': file_content
-        #                 })
-        #             except Exception as e:
-        #                 raise IOError(f"Error reading file {file_path}: {e}")
-
-        # return {
-        #     'text_prompt': text_prompt,
-        #     'files': files
-        # }
-
     def _parse_output(self, output: str, state: Dict[str, Any]) -> Dict[str, Any]:
         """
         Parse the LLM output and update the state.
@@ -348,6 +328,12 @@ class LLMNode(Node):
                 logger.info(f"[{self.name}] Successfully extracted JSON from response")
                 logger.debug(f"[{self.name}] Extracted JSON keys: {list(parsed_json.keys())}")
                 state["parsed_json"] = parsed_json
+                if isinstance(parsed_json, dict):
+                    for k in self.additional_output_keys:
+                        if k in self.additional_output_keys:
+                            state[k] = parsed_json[k]
+                        else:
+                            logger.warning(f"[{self.name}] Additional output key {k} specified but not provided in the LLM output.")
             else:
                 logger.warning(f"[{self.name}] Failed to extract JSON from response")
 

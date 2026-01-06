@@ -96,7 +96,7 @@ def load_data(data_file):
     """
     Load CSV data and split into features (X) and target (y).
 
-    Assumes the last column is the target variable.
+    Assumes the first column is the target variable.
 
     Args:
         data_file: Path to CSV file
@@ -110,11 +110,11 @@ def load_data(data_file):
     print(f"Loaded {len(df)} rows, {len(df.columns)} columns", file=sys.stderr)
     print(f"Columns: {list(df.columns)}", file=sys.stderr)
 
-    # Split features and target (assume last column is target)
-    X = df.iloc[:, :-1].values
-    y = df.iloc[:, -1].values
-    feature_names = list(df.columns[:-1])
-    target_name = df.columns[-1]
+    # Split features and target (assume first column is target)
+    X = df.iloc[:, 1:].values
+    y = df.iloc[:, 0].values
+    feature_names = list(df.columns[1:])
+    target_name = df.columns[0]
 
     print(f"Features: {feature_names}", file=sys.stderr)
     print(f"Target: {target_name}", file=sys.stderr)
@@ -258,6 +258,8 @@ def main():
         # Create and fit PySR model
         print("Initializing PySRRegressor...", file=sys.stderr)
         model = PySRRegressor(**pysr_kwargs)
+        model.feature_names_in_ = feature_names
+        model.display_feature_names_in_ = feature_names
 
         print("Starting symbolic regression search...", file=sys.stderr)
         print("This may take several minutes depending on configuration.", file=sys.stderr)

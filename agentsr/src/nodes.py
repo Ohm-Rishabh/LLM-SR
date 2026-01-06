@@ -188,7 +188,7 @@ class ToolSwitchNode(Node):
                 result_data["exit_code"] = exit_code
                 # result_data["stderr"] = stderr  # Keep stderr for logs
 
-                logger.info(f"[{self.name}] Successfully loaded result from file")
+                logger.info(f"[{self.name}] Successfully loaded result from file: {result_data}")
 
                 # Delete the result file
                 try:
@@ -424,6 +424,7 @@ class SRNode(LLMNode):
 
         # Build content blocks starting with the text prompt
         content_blocks = [{"type": "text", "text": user_prompt}]
+        logger.info(f"[{self.name}] User prompt: {user_prompt}")
 
         return {
             "system_prompt": system_prompt_text,

@@ -7,19 +7,23 @@ This script demonstrates:
 - Creating a simple workflow with one SRNode
 - Passing dataset metadata and CSV data to the LLM
 - Running the workflow and displaying the LLM response
+- Optional evaluation of discovered equations (symbolic + numerical metrics)
 
 Usage:
-    python main.py <dataset_name> [additional_instructions]
+    python main.py -D <dataset_name> [options]
 
 Examples:
-    python main.py I.10.7_1_0
-    python main.py BPG0 "Use simple operators only"
+    python main.py -D I.10.7_1_0
+    python main.py -D BPG0 -I "Use simple operators only"
+    python main.py -D I.10.7_1_0 --eval
+    python main.py -D I.10.7_1_0 --eval --skip-symbolic --output-dir ./results
 """
 
 from __future__ import annotations
 import sys
 import logging
 import argparse
+from pathlib import Path
 from nodes import SRNode, ToolSwitchNode
 from core.workflow import Workflow
 from core.node import LoopController, TransformNode, LLMNode
@@ -67,10 +71,17 @@ def main():
     parser = argparse.ArgumentParser(
         description='Run symbolic regression on LLM-SRBench datasets',
     )
-    parser.add_argument('-D', '--dataset_name', type=str, help='Dataset name (e.g., I.10.7_1_0, BPG0)')
+    parser.add_argument('-D', '--dataset_name', type=str, required=True, help='Dataset name (e.g., I.10.7_1_0, BPG0)')
     parser.add_argument('-I', '--instructions', type=str, default='', help='Additional instructions for the agent (optional)')
     parser.add_argument('-T', '--temperature', type=float, default=0.7, help='Temperature for LLM sampling (default: 0.7)')
-    parser.add_argument('-M', '--model', default="gpt-4o-mini", help="GPT model to use")
+    parser.add_argument('-M', '--model', default="gpt-4o-mini", help="GPT model to use for SR agent")
+    parser.add_argument('--max_iter',  type=int, default=5, help="maximum iterations of tool calls")
+
+    # Evaluation options
+    parser.add_argument('-E', '--eval', action='store_true', help='Enable evaluation of discovered equations')
+    parser.add_argument('--eval-model', default="gpt-4o", help="GPT model to use for symbolic evaluation (default: gpt-4o)")
+    parser.add_argument('--skip-symbolic', action='store_true', help="Skip symbolic accuracy evaluation (faster)")
+    parser.add_argument('--output-dir', type=str, default=None, help="Directory to save evaluation results")
 
     args = parser.parse_args()
 
@@ -80,6 +91,26 @@ def main():
         dataset_manager = LLMSRBenchDataset()
         csv_path, metadata = dataset_manager.get_dataset(args.dataset_name, split="train")
         logger.info(f"Dataset loaded: {csv_path}")
+
+        # Load test data if evaluation is enabled
+        test_data = None
+        ood_data = None
+        if args.eval:
+            import pandas as pd
+            test_csv_path, _ = dataset_manager.get_dataset(args.dataset_name, split="test")
+            test_df = pd.read_csv(test_csv_path)
+            test_data = test_df.values
+            logger.info(f"Test data loaded: {test_data.shape}")
+
+            # Try to load OOD test data if available
+            try:
+                ood_csv_path, _ = dataset_manager.get_dataset(args.dataset_name, split="ood_test")
+                ood_df = pd.read_csv(ood_csv_path)
+                ood_data = ood_df.values
+                logger.info(f"OOD test data loaded: {ood_data.shape}")
+            except:
+                logger.info("No OOD test data available")
+
     except FileNotFoundError as e:
         print(f"Error: {e}")
         print("\nTo extract datasets, run:")
@@ -165,7 +196,7 @@ def main():
     # Loop controller
     loop_controller = LoopController(
         name="loop_controller",
-        max_iterations=3,
+        max_iterations=args.max_iter,
         continue_node_id="sr_analyzer",
         exit_node_id="summary",
     )
@@ -175,6 +206,7 @@ def main():
         name="summary",
         system_prompt="summary",
         input_keys=["experience"],
+        additional_output_keys=["final_result"],
         model="gpt-4o-mini",
         parse_json=True,
     )
@@ -201,6 +233,8 @@ def main():
     print(user_query)
     print()
     print(f"Input File: {csv_path}")
+    if args.eval:
+        print(f"Ground Truth: {metadata.get('expression', 'Unknown')}")
     print()
 
     # Run the workflow
@@ -221,6 +255,91 @@ def main():
         print(result_state.get("llm_response", "No response generated."))
         print()
 
+        # Evaluation if enabled
+        if args.eval:
+            # Extract discovered equation
+            discovered_equation = result_state.get("final_result", "")
+
+            if discovered_equation:
+                print("=" * 60)
+                print("EVALUATION")
+                print("=" * 60)
+                print()
+
+                try:
+                    # Import evaluation module
+                    from evaluation import SRAgentEvaluator
+
+                    # Initialize evaluator
+                    evaluator = SRAgentEvaluator(
+                        symbolic_model=args.eval_model,
+                        symbolic_temperature=0.0
+                    )
+
+                    # Run evaluation
+                    eval_results = evaluator.evaluate_from_agent_output(
+                        agent_output=discovered_equation,
+                        dataset_metadata=metadata,
+                        test_data=test_data,
+                        ood_test_data=ood_data,
+                        check_symbolic=not args.skip_symbolic
+                    )
+
+                    # Display results
+                    print("Discovered Equation:")
+                    print(f"  {discovered_equation}")
+                    print()
+                    print("Ground Truth:")
+                    print(f"  {metadata.get('expression', 'Unknown')}")
+                    print()
+
+                    if eval_results["symbolic_accuracy"] is not None:
+                        print("Symbolic Accuracy:")
+                        is_equiv = eval_results["symbolic_accuracy"]["is_equivalent"]
+                        print(f"  Symbolically Equivalent: {'YES' if is_equiv else 'NO'}")
+                        print(f"  Reasoning: {eval_results['symbolic_accuracy']['reasoning']}")
+                        print()
+
+                    if "test" in eval_results["numerical_metrics"]:
+                        test_result = eval_results["numerical_metrics"]["test"]
+                        if test_result["success"]:
+                            metrics = test_result["metrics"]
+                            print("Numerical Metrics (Test Set):")
+                            print(f"  MSE:  {metrics['mse']:.6e}")
+                            print(f"  NMSE: {metrics['nmse']:.6e}")
+                            print(f"  R²:   {metrics['r2']:.6f}")
+                            print(f"  KDT:  {metrics['kdt']:.6f}")
+                            print(f"  MAPE: {metrics['mape']:.6f}")
+                            print(f"  Valid Points: {metrics['num_valid_points']}")
+                        else:
+                            print(f"Numerical Evaluation Failed: {test_result['error']}")
+                        print()
+
+                    # Save results
+                    if args.output_dir:
+                        output_dir = Path(args.output_dir)
+                    else:
+                        from core.consts import ROOT_DIR
+                        output_dir = Path(ROOT_DIR) / "evaluation_results"
+
+                    output_dir.mkdir(parents=True, exist_ok=True)
+                    output_file = output_dir / f"{args.dataset_name}_eval.json"
+
+                    evaluator.save_results(eval_results, output_file)
+                    print(f"Evaluation results saved to: {output_file}")
+                    print()
+
+                except ImportError:
+                    print("Warning: Evaluation module not found. Install with:")
+                    print("  pip install numpy scipy scikit-learn sympy openai pandas")
+                except Exception as eval_error:
+                    print(f"Evaluation error: {eval_error}")
+                    import traceback
+                    traceback.print_exc()
+            else:
+                print("Warning: Could not extract discovered equation from agent output")
+                print()
+
         # Display workflow metadata
         print("=" * 60)
         print(f"Workflow completed. Visited nodes: {result_state.get('_visited_nodes', [])}")
@@ -228,6 +347,8 @@ def main():
 
     except Exception as e:
         print(f"\nError: {e}")
+        import traceback
+        traceback.print_exc()
         sys.exit(1)
 
 
