@@ -96,6 +96,9 @@ def execute_code(code, workspace_paths, timeout=30):
     Returns:
         Dictionary with execution results
     """
+    import io
+    import contextlib
+
     # Prepare execution environment with workspace paths
     exec_globals = {
         '__builtins__': __builtins__,
@@ -115,14 +118,18 @@ def execute_code(code, workspace_paths, timeout=30):
     }
     exec_locals = {}
 
+    # Capture stdout using context manager for safe restoration
+    stdout_capture = io.StringIO()
+
     # Set timeout alarm (Unix only)
     if hasattr(signal, 'SIGALRM'):
         signal.signal(signal.SIGALRM, timeout_handler)
         signal.alarm(timeout)
 
     try:
-        # Execute the code
-        exec(code, exec_globals, exec_locals)
+        # Execute the code with stdout redirected
+        with contextlib.redirect_stdout(stdout_capture):
+            exec(code, exec_globals, exec_locals)
 
         # Cancel alarm
         if hasattr(signal, 'SIGALRM'):
@@ -156,10 +163,8 @@ def execute_code(code, workspace_paths, timeout=30):
         if hasattr(signal, 'SIGALRM'):
             signal.alarm(0)
 
-    # Extract result from exec_locals
-    result_data = exec_locals.get('result', None)
-    if result_data is None and status == "success":
-        logger.warning("No 'result' variable set in executed code.")
+    # Get captured stdout
+    stdout_output = stdout_capture.getvalue()
 
     # Close matplotlib figures to free memory
     plt.close('all')
@@ -169,7 +174,7 @@ def execute_code(code, workspace_paths, timeout=30):
         "error": error_msg,
         "error_type": error_type,
         "error_traceback": error_traceback,
-        "result": result_data,
+        "stdout": stdout_output,
     }
 
 
@@ -213,6 +218,10 @@ def main():
 
         if execution_result["status"] == "success":
             print("Status: SUCCESS", file=sys.stderr)
+            stdout_output = execution_result.get("stdout", "")
+            if stdout_output:
+                print("\nCaptured output:", file=sys.stderr)
+                print(stdout_output, file=sys.stderr)
         else:
             print(f"Status: ERROR ({execution_result['error_type']})", file=sys.stderr)
             print(f"Error: {execution_result['error']}", file=sys.stderr)
@@ -221,20 +230,19 @@ def main():
                 print(execution_result["error_traceback"], file=sys.stderr)
 
         # Prepare results for output
-        # The result should be from the 'result' variable in the executed code
-        code_result = execution_result.get("result")
+        # The result is the stdout output from the executed code
+        stdout_output = execution_result.get("stdout", "")
 
-        if execution_result["status"] == "success" and code_result is not None:
-            # User code set a result variable
+        if execution_result["status"] == "success":
+            # Code executed successfully - return stdout output
             results = {
                 "tool_name": "python_interpreter",
                 "result_type": "code_execution",
                 "status": "success",
-                # "code": code,
-                "result": code_result,  # This should be a dict with 'summary' and 'saved_files'
+                "output": stdout_output,
             }
         else:
-            # Either error or no result variable was set
+            # Error occurred during execution
             results = {
                 "tool_name": "python_interpreter",
                 "result_type": "code_execution",

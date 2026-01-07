@@ -6,31 +6,37 @@
 - Exploratory data analysis (statistics, distributions, correlations)
 - Data visualization (plots, charts, graphs)
 - Computing descriptive statistics and metrics
-- Data quality checks and validation
-- Feature engineering exploration
 - Preliminary analysis to inform symbolic regression strategies
 
 #### Usage Guidelines
 - This tool is for **data analysis only**, not for symbolic regression itself
 - The agent should write their own code for loading data files and exploring data patterns, not implementing SR algorithms
 - Output files (plots, results) should be saved to the workspace output directory. Only save unreadable results (e.g., denoised data file in binary format, image) to files.
-- The code should save the result in the `result` variable, which should be a JSON object with the following format:
-```json
-{
-  "summary": "All insights obtained from the code, e.g. the means of variables A and B are ...; the correlation of variable C and D are ...",
-  "saved_files": // all files saved in the executed code, if any
-  {
-    "filename1": "file description 1",
-    "filename2": "file description 2",
-    // ...
-  }
-}
-```
+- The code should **print** the analysis results to stdout using `print()` statements. The output will be captured and returned as the tool result.
+- You can use multiple print statements to output different pieces of information.
+- The printed output should be human-readable and contain all insights obtained from the analysis.
 
-**IMPORTANT**: The `summary` field must contain **only JSON-serializable, human-readable values** (strings, numbers, booleans, lists, dicts). **Do NOT include** pandas DataFrames, NumPy arrays, or other complex objects directly in the summary. Instead:
-- Extract scalar values from NumPy arrays (e.g., `float(array.mean())`)
-- Describe results in plain text with key statistics
-- Save complex objects to files and reference the file paths in `saved_files`
+**Output Format Guidelines:**
+- Print results in a clear, readable format (formatted strings, tables, statistics, etc.)
+- Include all relevant insights: statistics, correlations, observations, etc.
+- If you saved any files (plots, data files, etc.), mention the filenames and their descriptions in the output
+- Avoid printing raw complex objects (DataFrames, arrays) - instead describe their key characteristics
+
+**Example output format:**
+```
+Dataset shape: 1000 rows, 5 columns
+Missing values: None
+
+Summary statistics:
+- Variable A: mean=10.5, std=2.3
+- Variable B: mean=20.1, std=4.5
+
+Correlation between A and B: 0.85 (strong positive)
+
+Saved files:
+- correlation_matrix.png: Heatmap of all variable correlations
+- distribution_plots.png: Histograms for all variables
+```
 
 **Pre-imported Libraries and Environment Variables**
 
@@ -61,24 +67,27 @@ The following variables are already defined, storing the paths to the workspace:
 
 ```python
 # Load data from workspace
-data_file = os.path.join(os.environ['WORKSPACE_INPUT'], "data.csv")
+data_file = os.path.join(workspace_input, "data.csv")
 df = pd.read_csv(data_file)
 
 # Perform analysis
-# ...
+corr = df['A'].corr(df['B'])
+mean_a = df['A'].mean()
+mean_b = df['B'].mean()
 
-# write results
-summary = [
-  "The dataset is clean without any missing values",
-  f"The correlation between variables A and B is {corr}",
-  # ...
-]
-result = {
-  "summary": summary,
-  "saved_files": {
-    # ...
-  }
-}
+# Print analysis results
+print(f"Dataset shape: {df.shape[0]} rows, {df.shape[1]} columns")
+print()
+print("Summary statistics:")
+print(f"- Variable A: mean={mean_a:.2f}, std={df['A'].std():.2f}")
+print(f"- Variable B: mean={mean_b:.2f}, std={df['B'].std():.2f}")
+print()
+print(f"Correlation between A and B: {corr:.3f}")
+
+# If you save files, mention them
+# plt.savefig(os.path.join(workspace_output, "plot.png"))
+# print("\nSaved files:")
+# print("- plot.png: Scatter plot of A vs B")
 ```
 
 **Important**: Unlike other tools, you must not wrap the Python code in the JSON object as one of the arguments. You should create a separate Python code block in your response as above. Make sure you provide **both the JSON object specifying this tool and the Python code**.
