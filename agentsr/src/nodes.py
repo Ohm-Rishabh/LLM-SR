@@ -174,7 +174,7 @@ class ToolSwitchNode(Node):
                     "tool_name": tool_name,
                     "error": f"Result file not found: {result_file_path}",
                     "exit_code": exit_code,
-                    "stderr": stderr,
+                    # "stderr": stderr,
                 }
 
             # Read JSON result from file

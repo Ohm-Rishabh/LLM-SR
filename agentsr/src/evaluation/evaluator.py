@@ -29,7 +29,8 @@ class SRAgentEvaluator:
         self,
         symbolic_model: str = "gpt-4o",
         symbolic_temperature: float = 0.0,
-        api_key: Optional[str] = None
+        api_key: Optional[str] = None,
+        tolerance: float = 0.1
     ):
         """
         Initialize the SR agent evaluator.
@@ -38,6 +39,7 @@ class SRAgentEvaluator:
             symbolic_model: Model to use for symbolic evaluation (default: gpt-4o)
             symbolic_temperature: Temperature for symbolic evaluation LLM
             api_key: OpenAI API key (if None, uses environment variable)
+            tolerance: Tolerance threshold for accuracy metric (default: 0.1)
         """
         self.symbolic_evaluator = SymbolicAccuracyEvaluator(
             model=symbolic_model,
@@ -45,6 +47,7 @@ class SRAgentEvaluator:
             api_key=api_key
         )
         self.numerical_evaluator = NumericalEvaluator()
+        self.tolerance = tolerance
 
     def evaluate(
         self,
@@ -120,7 +123,8 @@ class SRAgentEvaluator:
                 equation_str=discovered_equation,
                 X=X,
                 y_true=y,
-                symbols=input_symbols
+                symbols=input_symbols,
+                tolerance=self.tolerance
             )
             numerical_results[split_name] = eval_result
 

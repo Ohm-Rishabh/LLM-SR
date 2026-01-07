@@ -28,7 +28,7 @@ class NumericalEvaluator:
         """Initialize the numerical evaluator."""
         pass
 
-    def compute_metrics(self, y_pred: np.ndarray, y_true: np.ndarray) -> Dict[str, float]:
+    def compute_metrics(self, y_pred: np.ndarray, y_true: np.ndarray, tolerance: float = 0.1) -> Dict[str, float]:
         """
         Compute numerical metrics between predicted and true values.
 
@@ -38,10 +38,12 @@ class NumericalEvaluator:
         - R²: Coefficient of determination
         - KDT: Kendall Tau correlation coefficient
         - MAPE: Mean Absolute Percentage Error
+        - Accuracy to Tolerance: Binary indicator if max relative error <= tolerance
 
         Args:
             y_pred: Predicted values from the discovered equation
             y_true: Ground truth values
+            tolerance: Tolerance threshold for accuracy metric (default: 0.1)
 
         Returns:
             Dictionary containing all computed metrics
@@ -57,6 +59,8 @@ class NumericalEvaluator:
                 "r2": -float('inf'),
                 "kdt": 0.0,
                 "mape": float('inf'),
+                "accuracy_to_tolerance": 0.0,
+                "max_relative_error": float('inf'),
                 "num_valid_points": 0,
             }
 
@@ -91,12 +95,28 @@ class NumericalEvaluator:
             logger.warning(f"Failed to compute MAPE: {e}")
             mape = float('inf')
 
+        # Accuracy to Tolerance (LLM-SRBench metric)
+        # Indicator: 1 if max(|(\hat{y}_i - y_i) / y_i|) <= tolerance, else 0
+        # Only compute where y_true is not zero to avoid division by zero
+        nonzero_mask = y_true_valid != 0
+        if np.any(nonzero_mask):
+            relative_errors = np.abs((y_pred_valid[nonzero_mask] - y_true_valid[nonzero_mask]) / y_true_valid[nonzero_mask])
+            max_relative_error = np.max(relative_errors)
+            accuracy_to_tolerance = 1.0 if max_relative_error <= tolerance else 0.0
+        else:
+            # If all true values are zero, check absolute error instead
+            max_absolute_error = np.max(np.abs(y_pred_valid - y_true_valid))
+            max_relative_error = max_absolute_error
+            accuracy_to_tolerance = 1.0 if max_absolute_error <= tolerance else 0.0
+
         return {
             "mse": float(mse),
             "nmse": float(nmse),
             "r2": float(r2),
             "kdt": float(kdt),
             "mape": float(mape),
+            "accuracy_to_tolerance": float(accuracy_to_tolerance),
+            "max_relative_error": float(max_relative_error),
             "num_valid_points": int(np.sum(valid_mask)),
         }
 
@@ -105,7 +125,8 @@ class NumericalEvaluator:
         equation_str: str,
         X: np.ndarray,
         y_true: np.ndarray,
-        symbols: List[str]
+        symbols: List[str],
+        tolerance: float = 0.1
     ) -> Dict[str, Any]:
         """
         Evaluate an equation string on data and compute metrics.
@@ -115,6 +136,7 @@ class NumericalEvaluator:
             X: Input data array of shape (n_samples, n_features)
             y_true: Ground truth output values of shape (n_samples,)
             symbols: List of variable names corresponding to X columns
+            tolerance: Tolerance threshold for accuracy metric (default: 0.1)
 
         Returns:
             Dictionary containing metrics and evaluation status
@@ -131,7 +153,7 @@ class NumericalEvaluator:
             y_pred = lambda_fn(X)
 
             # Compute metrics
-            metrics = self.compute_metrics(y_pred, y_true)
+            metrics = self.compute_metrics(y_pred, y_true, tolerance=tolerance)
 
             return {
                 "success": True,
@@ -204,7 +226,8 @@ class NumericalEvaluator:
         train_data: np.ndarray,
         test_data: np.ndarray,
         symbols: List[str],
-        ood_test_data: Optional[np.ndarray] = None
+        ood_test_data: Optional[np.ndarray] = None,
+        tolerance: float = 0.1
     ) -> Dict[str, Any]:
         """
         Evaluate equation on train, test, and optional OOD test sets.
@@ -216,6 +239,7 @@ class NumericalEvaluator:
             test_data: Test data array with same format as train_data
             symbols: List of variable names (output symbol first, then inputs)
             ood_test_data: Optional out-of-distribution test data
+            tolerance: Tolerance threshold for accuracy metric (default: 0.1)
 
         Returns:
             Dictionary containing metrics for train, test, and optionally OOD test
@@ -230,14 +254,14 @@ class NumericalEvaluator:
         X_train = train_data[:, 1:]
         y_train = train_data[:, 0]
         results['train'] = self.evaluate_equation_string(
-            equation_str, X_train, y_train, input_symbols
+            equation_str, X_train, y_train, input_symbols, tolerance=tolerance
         )
 
         # Evaluate on test data
         X_test = test_data[:, 1:]
         y_test = test_data[:, 0]
         results['test'] = self.evaluate_equation_string(
-            equation_str, X_test, y_test, input_symbols
+            equation_str, X_test, y_test, input_symbols, tolerance=tolerance
         )
 
         # Evaluate on OOD test data if provided
@@ -245,7 +269,7 @@ class NumericalEvaluator:
             X_ood = ood_test_data[:, 1:]
             y_ood = ood_test_data[:, 0]
             results['ood_test'] = self.evaluate_equation_string(
-                equation_str, X_ood, y_ood, input_symbols
+                equation_str, X_ood, y_ood, input_symbols, tolerance=tolerance
             )
 
         return results

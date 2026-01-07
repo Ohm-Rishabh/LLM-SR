@@ -143,7 +143,7 @@ class Workflow:
         initial_state: Optional[Dict[str, Any]] = None,
         max_steps: int = 1000,
         cleanup_old_workspaces: bool = False,
-        keep_last_n_workspaces: int = 10,
+        keep_last_n_workspaces: int = 20,
     ) -> Dict[str, Any]:
         """
         Run the workflow from the start node until termination.

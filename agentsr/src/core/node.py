@@ -293,6 +293,7 @@ class LLMNode(Node):
 
         prompt_parts.append("# User Input")
         prompt_parts.append(user_prompt)
+        logger.info(f"[{self.name}] User prompt: {user_prompt}")
 
         # Add workspace files section if available
         if workspace_files_section:

@@ -152,6 +152,8 @@ print(f"R²: {metrics['r2']}")
 - **R²** (Coefficient of Determination): Proportion of variance explained
 - **KDT** (Kendall Tau): Rank correlation coefficient
 - **MAPE** (Mean Absolute Percentage Error): Average percentage error
+- **Accuracy to Tolerance**: Binary metric (1 if max relative error ≤ 0.1, else 0)
+- **Max Relative Error**: Maximum relative error across all test points
 
 ### 3. SRAgentEvaluator
 
@@ -197,6 +199,8 @@ results = evaluator.evaluate(
         "kdt": 1.0,
         "mape": 0.0,
         "num_valid_points": 100
+        "accuracy_to_tolerance": 1.0,
+        "max_relative_error": 0.0,
       }
     }
   },
@@ -207,6 +211,8 @@ results = evaluator.evaluate(
       "nmse": 0.0,
       "r2": 1.0,
       "num_valid_points": 100
+        "accuracy_to_tolerance": 1.0,
+        "max_relative_error": 0.0,
     }
   }
 }
@@ -366,6 +372,10 @@ This implementation follows the approach from:
 
 - **LLM-SRBench**: Symbolic equivalence checking with LLM evaluators
 - **Standard SR Metrics**: MSE, NMSE, R², Kendall Tau from scikit-learn and scipy
+
+## Additional Documentation
+
+- **[Accuracy to Tolerance Metric](ACCURACY_TO_TOLERANCE.md)**: Detailed explanation of the LLM-SRBench accuracy metric
 
 ## License
 

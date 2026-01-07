@@ -310,6 +310,8 @@ def main():
                             print(f"  R²:   {metrics['r2']:.6f}")
                             print(f"  KDT:  {metrics['kdt']:.6f}")
                             print(f"  MAPE: {metrics['mape']:.6f}")
+                            print(f"  Accuracy to Tolerance (τ=0.1): {metrics['accuracy_to_tolerance']:.0f}")
+                            print(f"  Max Relative Error: {metrics['max_relative_error']:.6e}")
                             print(f"  Valid Points: {metrics['num_valid_points']}")
                         else:
                             print(f"Numerical Evaluation Failed: {test_result['error']}")
