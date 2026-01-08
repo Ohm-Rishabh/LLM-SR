@@ -284,7 +284,7 @@ def main():
         # Combine template equations if using expression_spec
         best_equation_str = str(best_equation['equation'])
         if expression_spec_dict:
-            combined_best = combine_template_equation(best_equation_str, expression_spec_dict, feature_names)
+            combined_best = combine_template_equation(best_equation_str, expression_spec_dict)
             print(f"\nBest equation (index {best_idx}):", file=sys.stderr)
             print(f"  Complexity: {best_equation['complexity']}", file=sys.stderr)
             print(f"  Loss: {best_equation['loss']}", file=sys.stderr)
@@ -310,7 +310,7 @@ def main():
             # Get both raw and combined equation strings
             raw_expr = str(row['equation'])
             if expression_spec_dict:
-                combined_expr = combine_template_equation(raw_expr, expression_spec_dict, feature_names)
+                combined_expr = combine_template_equation(raw_expr, expression_spec_dict)
             else:
                 combined_expr = raw_expr
 

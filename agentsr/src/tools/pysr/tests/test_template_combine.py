@@ -26,10 +26,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["m", "m_0", "c"],
             "combine": "f(m, m_0) + g(c)"
         }
-        feature_names = ["m", "m_0", "c"]
         expected = "(m / -1.0746335) + (c)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_nested_trigonometric_template(self):
@@ -40,10 +39,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x1", "x2", "x3"],
             "combine": "sin(f(x1, x2)) + g(x3)"
         }
-        feature_names = ["x1", "x2", "x3"]
         expected = "sin((x1 + x2)) + (x3^2)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_exponential_template(self):
@@ -54,10 +52,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x1", "x2"],
             "combine": "exp(f(x1, x2))"
         }
-        feature_names = ["x1", "x2"]
         expected = "exp((x1 * x2))"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_multiplicative_template(self):
@@ -68,10 +65,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x1", "x2", "x3"],
             "combine": "f(x1) * g(x2, x3)"
         }
-        feature_names = ["x1", "x2", "x3"]
         expected = "(x1^2) * (x2 + x3)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_complex_physics_template(self):
@@ -82,19 +78,17 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x1", "x2", "x3"],
             "combine": "f(x1) * exp(g(x2)) + h(x3)"
         }
-        feature_names = ["x1", "x2", "x3"]
         expected = "(x1^2) * exp((-x2 / 2.5)) + (x3 * 3.14)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_no_template_returns_original(self):
         """Test that without template, original equation is returned"""
         equation = "x1 + x2 * 3.14"
         expression_spec = None
-        feature_names = ["x1", "x2"]
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, equation)
 
     def test_newline_separated_equations(self):
@@ -105,10 +99,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x1", "x2"],
             "combine": "f(x1) + g(x2)"
         }
-        feature_names = ["x1", "x2"]
         expected = "(x1 / 2.0) + (x2^2)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_single_variable_per_function(self):
@@ -119,10 +112,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x1", "x2", "x3"],
             "combine": "f(x1) + g(x2) * h(x3)"
         }
-        feature_names = ["x1", "x2", "x3"]
         expected = "(log(x1)) + (sqrt(x2)) * (x3^3)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
     def test_constants_in_subexpressions(self):
@@ -133,10 +125,9 @@ class TestTemplateCombine(unittest.TestCase):
             "variable_names": ["x", "y"],
             "combine": "f(x) - g(y)"
         }
-        feature_names = ["x", "y"]
         expected = "(x * 2.718 + 1.414) - (y / 3.14159)"
 
-        result = combine_template_equation(equation, expression_spec, feature_names)
+        result = combine_template_equation(equation, expression_spec)
         self.assertEqual(result, expected)
 
 

@@ -10,20 +10,21 @@ import sys
 import re
 
 
-def combine_template_equation(equation_str, expression_spec_dict, feature_names):
+def combine_template_equation(equation_str, expression_spec_dict):
     """
     Combine template sub-expressions into a final human-readable equation.
 
     When using TemplateExpressionSpec, PySR returns equations like:
-        "f = x1 + x2; g = x3^2"
+        "f = #1 + #2; g = #1^2"
+
+    where #1, #2, etc. refer to the arguments specified in the combine field.
 
     This function substitutes the sub-expressions into the combine template to get:
         "sin(x1 + x2) + x3^2" (if combine was "sin(f(x1, x2)) + g(x3)")
 
     Args:
-        equation_str: String containing sub-expression definitions (e.g., "f = x1; g = x2")
+        equation_str: String containing sub-expression definitions with placeholders (e.g., "f = #1 + #2; g = #1")
         expression_spec_dict: The expression_spec dictionary with 'expressions', 'variable_names', 'combine'
-        feature_names: List of actual feature names from the data
 
     Returns:
         Combined equation string, or original if parsing fails
@@ -48,13 +49,6 @@ def combine_template_equation(equation_str, expression_spec_dict, feature_names)
 
         # Get the combine template
         combine_template = expression_spec_dict['combine']
-        variable_names = expression_spec_dict['variable_names']
-
-        # Create mapping from template variable names to actual feature names
-        var_mapping = {}
-        for i, var_name in enumerate(variable_names):
-            if i < len(feature_names):
-                var_mapping[var_name] = feature_names[i]
 
         # Replace each sub-expression in the combine template
         result = combine_template
@@ -64,9 +58,11 @@ def combine_template_equation(equation_str, expression_spec_dict, feature_names)
 
             sub_expr = sub_exprs[expr_name]
 
-            # Replace #1, #2, etc. with actual variable names
-            # In PySR templates, #1 refers to first argument, #2 to second, etc.
-            # We need to map these to the actual variables used in that sub-expression
+            # Replace #1, #2, etc. with variable names from the combine field
+            # Example: if combine = "f(m, m_0) + g(c)", then for function f:
+            #   - #1 refers to the 1st argument 'm' in f(m, m_0)
+            #   - #2 refers to the 2nd argument 'm_0' in f(m, m_0)
+            # We extract the arguments for this specific function and map placeholders accordingly
 
             # Use a more robust pattern that handles nested parentheses
             # We need to find expr_name followed by parentheses and extract arguments
@@ -100,12 +96,12 @@ def combine_template_equation(equation_str, expression_spec_dict, feature_names)
                 # Split arguments (simple split by comma - may need improvement for nested commas)
                 args = [arg.strip() for arg in args_str.split(',')]
 
-                # Replace #i with the corresponding variable
+                # Replace #i with the corresponding argument from the combine field
+                # #1 refers to the 1st argument in the function call, #2 to the 2nd, etc.
                 for i, arg in enumerate(args, 1):
                     placeholder = f'#{i}'
-                    # Map template variable to actual feature name
-                    actual_var = var_mapping.get(arg, arg)
-                    sub_expr = sub_expr.replace(placeholder, actual_var)
+                    # Use the variable name directly from the combine template
+                    sub_expr = sub_expr.replace(placeholder, arg)
 
             # Now replace the function call with the substituted expression
             # Use the robust function to replace the entire call
