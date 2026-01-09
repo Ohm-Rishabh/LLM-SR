@@ -150,23 +150,6 @@ Using `expression_spec` to specify equation structure is STRONGLY RECOMMENDED as
   - **Typical range:** `5-40` (5 for quick tests, 20+ for production)
   - **With templates:** Can often use lower values (5-15) since search space is reduced
 
-##### Complexity Control
-
-- **`maxsize`** (int)
-  - Maximum complexity (number of nodes) allowed in equations
-  - Limits equation size to prevent overly complex models
-  - Complexity = operators + features + constants
-  - Example: `sin(x1) + x2 * 2.5` has complexity 5
-  - **Default:** `20`
-  - **Typical range:** `10-30` (start smaller, increase if needed)
-
-- **`maxdepth`** (int or None)
-  - Maximum nesting depth of expressions
-  - Example: `sin(cos(x))` has depth 2
-  - `None` means no depth limit (only maxsize applies)
-  - **Default:** `None`
-  - **Typical range:** `3-10` when used
-
 ##### Constraints
 
 - **`constraints`** (dict or None)
@@ -180,24 +163,11 @@ Using `expression_spec` to specify equation structure is STRONGLY RECOMMENDED as
   - Example: `{"sin": ["sin", "cos"]}` prevents `sin(sin(x))` and `sin(cos(x))`
   - **Default:** `None`
 
-##### Noise Handling
-
-- **`denoise`** (bool)
-  - Use Gaussian Process to denoise data before fitting
-  - Helps when data has significant noise
-  - **Default:** `False`
-
-##### Output and Interpretation
-
-- **`extra_sympy_mappings`** (dict or None)
-  - Map custom operators to SymPy equivalents
-  - Required if you use custom operators and want SymPy export
-  - Example: `{"inv": lambda x: 1/x}`
-  - **Default:** `None`
-
 #### Usage Examples
 
 **CRITICAL: These are illustrative JSON structures only. You MUST design your own `expression_spec` based on domain reasoning, NOT copy these examples.**
+
+**IMPORTANT: Do NOT include comments in the JSON structure.**
 
 ##### Example: Using a template (when justified by domain analysis)
 ```json
@@ -257,17 +227,10 @@ Use this ONLY when you genuinely have no domain knowledge AND previous tool call
    - Add complexity only when justified by domain reasoning or previous observations
 
 3. **Set complexity parameters based on template usage:**
-   - **With templates:** Use smaller `maxsize` (8-12) since sub-expressions are simpler
    - **With templates:** Reduce `niterations` (5-15) since search space is constrained
-   - **Without templates:** May need larger `maxsize` (15-25) but still avoid unnecessarily large values
    - **Without templates:** More iterations (15-30) may be needed
 
-4. **Handle noise appropriately:**
-   - Use `denoise: true` if data appears noisy from visualization
-   - Lower `maxsize` to avoid overfitting to noise
-   - Templates help avoid overfitting by constraining the hypothesis space
-
-5. **For multi-variable systems:**
+4. **For multi-variable systems:**
    - Think about variable groupings: which variables interact? which are independent?
    - If variables have separable effects based on domain knowledge, use templates to decompose
    - DO NOT mechanically split variables - only separate when physically/logically justified

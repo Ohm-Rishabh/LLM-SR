@@ -25,7 +25,6 @@
 **Example output format:**
 ```
 Dataset shape: 1000 rows, 5 columns
-Missing values: None
 
 Summary statistics:
 - Variable A: mean=10.5, std=2.3
@@ -77,11 +76,9 @@ mean_b = df['B'].mean()
 
 # Print analysis results
 print(f"Dataset shape: {df.shape[0]} rows, {df.shape[1]} columns")
-print()
 print("Summary statistics:")
 print(f"- Variable A: mean={mean_a:.2f}, std={df['A'].std():.2f}")
 print(f"- Variable B: mean={mean_b:.2f}, std={df['B'].std():.2f}")
-print()
 print(f"Correlation between A and B: {corr:.3f}")
 
 # If you save files, mention them
