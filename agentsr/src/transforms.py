@@ -1,6 +1,6 @@
 # Defines transformations of states used in the TransformNode instances.
 
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Any
 from tools.common.configs import ARGS_EXCLUDED_IN_EXPERIENCE
 
 
@@ -28,5 +28,21 @@ def add_tool_results_to_experience(state: Dict[str, any]) -> Dict[str, any]:
         state["experience"] = experience
 
     state.pop("tool_call", None)
+
+    return state
+
+
+def track_llm_output(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Transform function to track LLM outputs in a history list.
+
+    Expects 'llm_response' in state, appends it to 'llm_history'.
+    """
+    llm_history: List[str] = state.get("llm_history", [])
+    llm_response = state.get("llm_response")
+
+    if llm_response:
+        llm_history.append(llm_response)
+        state["llm_history"] = llm_history
 
     return state

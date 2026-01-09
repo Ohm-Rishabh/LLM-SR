@@ -346,7 +346,7 @@ def main():
         best_equation_result = {
             "expression": combined_best,
             "complexity": int(best_equation['complexity']),
-            "raw_expression": best_equation_str if expression_spec_dict else None,
+            # "raw_expression": best_equation_str if expression_spec_dict else None,
             "loss": float(f"{best_equation['loss']:.3f}"),
             "score": float(f"{best_equation['score']:.3f}"),
             "mape": float(f"{best_mape:.3f}"),

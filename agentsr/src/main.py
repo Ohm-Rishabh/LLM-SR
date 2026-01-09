@@ -27,8 +27,9 @@ from pathlib import Path
 from nodes import SRNode, ToolSwitchNode
 from core.workflow import Workflow
 from core.node import LoopController, TransformNode, LLMNode
-from transforms import add_tool_results_to_experience
+from transforms import add_tool_results_to_experience, track_llm_output
 from datasets.llmsrbench import LLMSRBenchDataset
+from utils import save_reasoning_log
 
 logger = logging.getLogger(__name__)
 
@@ -83,6 +84,10 @@ def main():
     parser.add_argument('--skip-symbolic', action='store_true', help="Skip symbolic accuracy evaluation (faster)")
     parser.add_argument('--output-dir', type=str, default=None, help="Directory to save evaluation results")
     parser.add_argument('--acc_tol', type=float, default=0.1, help="Tolerance for accuracy metric (default: 0.1)")
+
+    # Logging options
+    parser.add_argument('-L','--log-reasoning', action='store_true',
+                       help='Log reasoning process (LLM outputs and tool results) to JSON file in logs/ directory')
 
     args = parser.parse_args()
 
@@ -188,6 +193,12 @@ def main():
         description="Adds tool results to the agent's experience log"
     )
 
+    track_llm_transform = TransformNode(
+        name="track_llm",
+        transform_fn=track_llm_output,
+        description="Tracks LLM outputs in history"
+    )
+
     exit_node = TransformNode(
         name="exit",
         transform_fn=lambda state: state,  # No-op
@@ -220,9 +231,11 @@ def main():
     workflow.add_node(summary_node)
     workflow.add_node(exit_node)
     workflow.add_node(add_tool_results_transform)
+    workflow.add_node(track_llm_transform)
     # Add edges
-    workflow.add_edge(sr_node, tool_switch_node)
-    workflow.add_edge(sr_node, exit_node)
+    workflow.add_edge(sr_node, track_llm_transform)
+    workflow.add_edge(track_llm_transform, tool_switch_node)
+    workflow.add_edge(track_llm_transform, exit_node)
     workflow.add_edge(tool_switch_node, add_tool_results_transform)
     workflow.add_edge(add_tool_results_transform, loop_controller)
     workflow.add_edge(loop_controller, sr_node)
@@ -255,6 +268,24 @@ def main():
         print("-" * 60)
         print(result_state.get("llm_response", "No response generated."))
         print()
+
+        # Log reasoning process if enabled
+        if args.log_reasoning:
+            discovered_eq = result_state.get("final_result", "")
+            ground_truth_eq = metadata.get('expression', 'Unknown')
+
+            try:
+                log_path = save_reasoning_log(
+                    dataset_name=args.dataset_name,
+                    state=result_state,
+                    discovered_equation=discovered_eq,
+                    ground_truth=ground_truth_eq
+                )
+                print(f"Reasoning log saved to: {log_path}")
+                print()
+            except Exception as log_error:
+                print(f"Warning: Failed to save reasoning log: {log_error}")
+                print()
 
         # Evaluation if enabled
         if args.eval:

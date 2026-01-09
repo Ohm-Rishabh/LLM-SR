@@ -394,13 +394,16 @@ class LLMNode(Node):
             Extracted Python code as string, or None if no code block found.
         """
         # Try to find Python code in code blocks
-        # Pattern matches ```python or just ``` followed by code
-        python_block_pattern = r"```(?:python)?\s*\n(.*?)\n```"
+        # Pattern specifically looks for ```python to avoid matching other code blocks
+        # The \n? makes the final newline before closing ``` optional
+        python_block_pattern = r"```python\s*\n(.*?)\n?```"
         matches = re.findall(python_block_pattern, text, re.DOTALL)
 
         if matches:
-            # Return the first match (code content without the backticks)
-            return matches[0]
+            # Return the last match (code content without the backticks)
+            # Use last match in case there are multiple blocks, the Python block is usually last
+            # Strip any trailing newlines for cleaner code
+            return matches[-1].rstrip('\n')
 
         return None
 
