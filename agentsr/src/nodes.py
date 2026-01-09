@@ -7,6 +7,7 @@ import logging
 import subprocess
 import json as json_module
 from pathlib import Path
+from utils import format_experience_log
 
 logger = logging.getLogger(__name__)
 
@@ -418,9 +419,9 @@ class SRNode(LLMNode):
                 user_prompt += f"\n\n## Workspace Files\n{files_summary}"
 
         # Add experience log if available
-        if "experience" in state:
-            experience_log = state["experience"]
-            user_prompt += f"\n\n## Experience Log\n{experience_log}"
+        if "experience" in state and state["experience"]:
+            experience_log = format_experience_log(state["experience"])
+            user_prompt += f"\n\n## Experience Log\n\n{experience_log}"
 
         # Build content blocks starting with the text prompt
         content_blocks = [{"type": "text", "text": user_prompt}]

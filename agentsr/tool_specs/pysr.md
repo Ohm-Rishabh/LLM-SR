@@ -183,7 +183,6 @@ Using `expression_spec` to specify equation structure is STRONGLY RECOMMENDED as
       "combine": "<YOUR_DOMAIN_SPECIFIC_STRUCTURE>"
     },
     "niterations": 10,
-    "maxsize": 12
   }
 }
 ```
@@ -204,7 +203,6 @@ Use this ONLY when you genuinely have no domain knowledge AND previous tool call
     "binary_operators": ["+", "-", "*", "/"],
     "unary_operators": [],
     "niterations": 10,
-    "maxsize": 15
   }
 }
 ```
@@ -220,10 +218,8 @@ Use this ONLY when you genuinely have no domain knowledge AND previous tool call
    - If you can hypothesize a structure → Design a custom `expression_spec` for 10-100x speedup
 
 2. **Design operators based on your hypothesis:**
-   - **AVOID adding operators "just in case"** - each operator exponentially increases search space
-   - Include `sin`, `cos` ONLY if you have evidence of periodicity or domain knowledge suggests it
-   - Include `exp`, `log` ONLY if you see exponential trends or domain knowledge suggests it
-   - For most cases, start with just `["+", "-", "*", "/"]` and no unary operators
+   - Include `sin`, `cos` if you have evidence of periodicity or domain knowledge suggests it
+   - Include `exp`, `log` if you see exponential trends or domain knowledge suggests it
    - Add complexity only when justified by domain reasoning or previous observations
 
 3. **Set complexity parameters based on template usage:**
