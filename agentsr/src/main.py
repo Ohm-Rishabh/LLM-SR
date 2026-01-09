@@ -82,6 +82,7 @@ def main():
     parser.add_argument('--eval-model', default="gpt-4o", help="GPT model to use for symbolic evaluation (default: gpt-4o)")
     parser.add_argument('--skip-symbolic', action='store_true', help="Skip symbolic accuracy evaluation (faster)")
     parser.add_argument('--output-dir', type=str, default=None, help="Directory to save evaluation results")
+    parser.add_argument('--acc_tol', type=float, default=0.1, help="Tolerance for accuracy metric (default: 0.1)")
 
     args = parser.parse_args()
 
@@ -273,7 +274,8 @@ def main():
                     # Initialize evaluator
                     evaluator = SRAgentEvaluator(
                         symbolic_model=args.eval_model,
-                        symbolic_temperature=0.0
+                        symbolic_temperature=0.0,
+                        tolerance=args.acc_tol
                     )
 
                     # Run evaluation
@@ -310,7 +312,7 @@ def main():
                             print(f"  R²:   {metrics['r2']:.6f}")
                             print(f"  KDT:  {metrics['kdt']:.6f}")
                             print(f"  MAPE: {metrics['mape']:.6f}")
-                            print(f"  Accuracy to Tolerance (τ=0.1): {metrics['accuracy_to_tolerance']:.0f}")
+                            print(f"  Accuracy to Tolerance (τ={args.acc_tol}): {metrics['accuracy_to_tolerance']:.0f}")
                             print(f"  Max Relative Error: {metrics['max_relative_error']:.6e}")
                             print(f"  Valid Points: {metrics['num_valid_points']}")
                         else:
