@@ -351,19 +351,15 @@ def main():
             "mape": float(f"{best_mape:.3f}"),
         }
 
-        # Add raw sub-expressions if using template
-        if expression_spec_dict:
-            best_equation_result["raw_expression"] = best_equation_str
-
         results = {
             "tool_name": "pysr",
             "result_type": "equations",
             "status": "success",
             "best_equation": best_equation_result,
-            "all_equations": all_equations,
-            "feature_names": feature_names,
-            "target_name": target_name,
-            "configuration": serializable_config
+            # "all_equations": all_equations,
+            # "feature_names": feature_names,
+            # "target_name": target_name,
+            # "configuration": serializable_config
         }
 
         # Write results to file using common utility

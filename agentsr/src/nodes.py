@@ -185,7 +185,7 @@ class ToolSwitchNode(Node):
 
                 # Add metadata
                 result_data["tool_name"] = tool_name
-                result_data["exit_code"] = exit_code
+                # result_data["exit_code"] = exit_code
                 # result_data["stderr"] = stderr  # Keep stderr for logs
 
                 logger.info(f"[{self.name}] Successfully loaded result from file: {result_data}")
